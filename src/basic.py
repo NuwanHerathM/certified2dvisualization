@@ -9,8 +9,6 @@ import timeit
 
 import numpy as np
 
-from subdivision import *
-
 import os, sys
 
 if sys.version_info[:2] > (2, 7):
@@ -40,25 +38,18 @@ with open(args.poly) as inf:
 naive  = """
 for x in xs:
     for y in ys:
-        res = np.polyval(map(lambda c : np.polyval(c,x),p), y)
+        res = np.polynomial.polynomial.polyval(map(lambda c : np.polynomial.polynomial.polyval(c,x),p), y)
         # print(str(x) + " " + str(y) + " " + str(res))
 """
 
 # partial evaluation
 partial = """
-p_x = map(lambda x : map(lambda c : np.polyval(c,x),p),xs)
+p_x = map(lambda x : map(lambda c : np.polynomial.polynomial.polyval(c,x),p),xs)
 for y in ys:
     for i in range(n):
-        res = np.polyval(p_x[i], y)
+        res = np.polynomial.polynomial.polyval(p_x[i], y)
         # print(str(xs[i]) + " " + str(y) + " " + str(res))
 """
-
-""" #subdivision
-p_x = map(lambda x : (map(lambda c : ft.arb(np.polyval(c,x),0),p)),xs)
-print(list(p_x))
-for i in range(n):
-    l = subdivide(0, n, p_x[i], math.floor(math.log2(n)))
-    print(l) """
 
 naive_time = timeit.timeit(naive, setup="from __main__ import n, xs, ys, p, np", number=100)/100
 partial_time = timeit.timeit(partial, setup="from __main__ import n, xs, ys, p, np", number=100)/100

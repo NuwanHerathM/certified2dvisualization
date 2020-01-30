@@ -23,6 +23,15 @@ def subdivide(val, low, up, poly,r):
     else:
         return []
 
+def isolateIntervals(poly, n, intervals):
+    partial_poly = np.empty((n, deg_y + 1), dtype=object)
+    for i in range(n):
+        x = xs[i]
+        for j in range(deg_y + 1):
+            partial_poly[i,j] = ft.arb_poly(list(poly[j]))(ft.arb(x, rad))
+    for i in range(n):
+        intervals[i] = subdivide(ys, 0, n - 1, list(partial_poly[i]), d)
+    
 
 # Parse the input
 
@@ -64,15 +73,8 @@ with open(args.poly) as inf:
 rad = (ys[-1] - ys[0]) / (2 * (n - 1))
 rad = 0
 
-partial_poly = np.empty((n, deg_y + 1), dtype=object)
-for i in range(n):
-    x = xs[i]
-    for j in range(deg_y + 1):
-        partial_poly[i,j] = ft.arb_poly(list(poly[j])[::-1])(ft.arb(x, rad))
-
 intervals = np.empty(n, dtype="object")
-for i in range(n):
-    intervals[i] = subdivide(ys, 0, n - 1, list(partial_poly[i])[::-1], d)
+isolateIntervals(poly, n, intervals)
 
 # squares = np.empty(n - 1, dtype="object")
 # for i in range(n - 1):
