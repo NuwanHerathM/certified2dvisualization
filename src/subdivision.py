@@ -2,12 +2,12 @@ import argparse
 
 import numpy as np
 import math
-from sets import Set
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 import flint as ft
 
+#@profile
 def subdivide(val, low, up, poly,r):
     min = val[low]
     max = val[up]
@@ -23,15 +23,18 @@ def subdivide(val, low, up, poly,r):
     else:
         return []
 
+#@profile
 def isolateIntervals(poly, n, intervals):
     partial_poly = np.empty((n, deg_y + 1), dtype=object)
+    rad = (ys[-1] - ys[0]) / (2 * (n - 1))
+    rad = 0
     for i in range(n):
         x = xs[i]
         for j in range(deg_y + 1):
-            partial_poly[i,j] = ft.arb_poly(list(poly[j]))(ft.arb(x, rad))
+            partial_poly[i,j] = np.polynomial.polynomial.polyval(x, poly[j])
     for i in range(n):
-        intervals[i] = subdivide(ys, 0, n - 1, list(partial_poly[i]), d)
-    
+        intervals[i] = subdivide(ys, 0, n - 1, partial_poly[i], d)
+
 
 # Parse the input
 
@@ -70,31 +73,14 @@ with open(args.poly) as inf:
 
 # Core of the program
 
-rad = (ys[-1] - ys[0]) / (2 * (n - 1))
-rad = 0
-
 intervals = np.empty(n, dtype="object")
 isolateIntervals(poly, n, intervals)
 
-# squares = np.empty(n - 1, dtype="object")
-# for i in range(n - 1):
-#     s = Set()
-#     for j in {i, i + 1}:
-#         for e in intervals[j]:
-#             s.add(e[0])
-#     squares[i] = s
-
-# Show selected boxes
+# Show isolated intervals
 
 fig1 = plt.figure()
 
 ax1 = fig1.add_subplot(111, aspect='equal')
-# c = (xs[-1] - xs[0]) / (n - 1)
-# for i in range(n - 1):
-#     x = xs[i]
-#     for e in squares[i]:
-#         y = ys[e]
-#         ax1.add_patch(patches.Rectangle((x,y),c,c))
 
 for i in range(n):
     for e in intervals[i]:

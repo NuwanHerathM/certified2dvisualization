@@ -38,16 +38,16 @@ with open(args.poly) as inf:
 naive  = """
 for x in xs:
     for y in ys:
-        res = np.polynomial.polynomial.polyval(map(lambda c : np.polynomial.polynomial.polyval(c,x),p), y)
+        res = np.polynomial.polynomial.polyval(y, map(lambda c : np.polynomial.polynomial.polyval(x, c),p))
         # print(str(x) + " " + str(y) + " " + str(res))
 """
 
 # partial evaluation
 partial = """
-p_x = map(lambda x : map(lambda c : np.polynomial.polynomial.polyval(c,x),p),xs)
+p_x = map(lambda x : map(lambda c : np.polynomial.polynomial.polyval(x, c),p),xs)
 for y in ys:
     for i in range(n):
-        res = np.polynomial.polynomial.polyval(p_x[i], y)
+        res = np.polynomial.polynomial.polyval(y, p_x[i])
         # print(str(xs[i]) + " " + str(y) + " " + str(res))
 """
 
