@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import numpy as np
 import math
@@ -7,7 +8,13 @@ import matplotlib.patches as patches
 
 import flint as ft
 
-#@profile
+# Takes care of the decorators set for the profiling
+try:
+    profile  # throws an exception when profile isn't defined
+except NameError:
+    profile = lambda x: x   # if it's not defined simply ignore the decorator.
+
+@profile
 def subdivide(val, low, up, poly,r):
     min = val[low]
     max = val[up]
@@ -23,26 +30,40 @@ def subdivide(val, low, up, poly,r):
     else:
         return []
 
-#@profile
-def isolateIntervals(poly, n, intervals):
+@profile
+def isolateIntervals(poly, n, intervals, b):
     partial_poly = np.empty((n, deg_y + 1), dtype=object)
     rad = (ys[-1] - ys[0]) / (2 * (n - 1))
     rad = 0
+    for j in range(deg_y + 1):
+        if (b):
+            # if we want to use the Chebyshev basis
+            # TO DO
+            tmp = np.polynomial.chebyshev.poly2cheb(poly[j])
+            for i in range(n):
+                x = xs[i]
+                partial_poly[i,j] = np.polynomial.chebyshev.chebval(x, tmp)
+        else:
+            # if we do not use the Chebyshev basis
+            tmp = poly[j]
+            for i in range(n):
+                x = xs[i]
+                partial_poly[i,j] = np.polynomial.polynomial.polyval(x, tmp)
     for i in range(n):
-        x = xs[i]
-        for j in range(deg_y + 1):
-            partial_poly[i,j] = np.polynomial.polynomial.polyval(x, poly[j])
-    for i in range(n):
-        intervals[i] = subdivide(ys, 0, n - 1, partial_poly[i], d)
+        intervals[i] = subdivide(ys, 0, n - 1, partial_poly[i].tolist(), d)
 
 
 # Parse the input
 
+dirname = os.path.dirname(__file__)
+default_file = os.path.join(dirname, '../polys/circle.poly')
+
 parser = argparse.ArgumentParser()
-parser.add_argument('n', type=int)
-parser.add_argument('-poly', default='../polys/circle.poly')
-parser.add_argument('-x', nargs=2, type=int, default=[-8,8])
-parser.add_argument('-y', nargs=2, type=int, default=[-8,8])
+parser.add_argument('n', type=int, help="size of the grid (number of subdivisions)")
+parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
+parser.add_argument('-x', nargs=2, type=int, default=[-8,8], help="bounds on the x-axis")
+parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the y-axis")
+parser.add_argument('-cheb', nargs='?', type=bool, const=True, default=False, help="use the Chebyshev basis")
 
 args = parser.parse_args()
 
@@ -51,6 +72,7 @@ d = math.floor(np.log2(n))
 xs = np.linspace(args.x[0], args.x[1], n)
 ys = np.linspace(args.y[0], args.y[1], n)
 max_dy = ys[1] - ys[0]
+cheb = args.cheb
 
 # Read the polynomial
 
@@ -74,7 +96,7 @@ with open(args.poly) as inf:
 # Core of the program
 
 intervals = np.empty(n, dtype="object")
-isolateIntervals(poly, n, intervals)
+isolateIntervals(poly, n, intervals, cheb)
 
 # Show isolated intervals
 
@@ -88,8 +110,10 @@ for i in range(n):
 
 plt.xlim(xs[0],xs[-1])
 plt.ylim(ys[0],ys[-1])
-circle = plt.Circle((0, 0), 2, color='r', fill=False)
-ax1.add_artist(circle)
+if (args.poly == default_file):
+    # draw a circle if the default file is used
+    circle = plt.Circle((0, 0), 2, color='r', fill=False)
+    ax1.add_artist(circle)
 plt.show()
 
 print("Exited without trouble")
