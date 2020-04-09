@@ -11,6 +11,7 @@ parser.add_argument('m', type=int, help="degree on y")
 
 args = parser.parse_args()
 
+# if the coeffient distribution is centered on zero there are some properties
 matrix = np.random.random_integers(0, 100, (args.m, args.n))
 print(matrix)
 
