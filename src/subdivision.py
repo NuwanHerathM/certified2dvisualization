@@ -10,6 +10,8 @@ import flint as ft
 
 from scipy.fft import idct
 from math import cos, pi
+from scipy.special import comb
+import itertools
 
 # Takes care of the decorators set for the profiling
 try:
@@ -38,14 +40,22 @@ def isolateIntervals(poly, n, intervals, switch):
     partial_poly = np.empty((n, deg_y + 1), dtype=object)
     rad = (ys[-1] - ys[0]) / (2 * (n - 1))
     rad = 0
+    a = xs[0]
+    b = xs[-1]
+    alpha = (xs[-1] - xs[0]) / 2
+    shift = xs[-1] - alpha
     for j in range(deg_y + 1):
         if (switch == 1):
             # if we want to use Clenshaw with the Chebyshev basis
-            a = xs[0]
-            b = xs[-1]
-            tmp = np.polynomial.Polynomial(poly[j]).convert([a, b], np.polynomial.Chebyshev, [a, b])
+            tmp = np.polynomial.Polynomial(poly[j]).convert(kind=np.polynomial.Chebyshev)
+            tmp.convert(domain=[a, b], window=[a, b])
+            q = tmp.coef
+            q[np.abs(q) < 1e-15] = 0
             for i in range(n):
-                partial_poly[i,j] = tmp(xs[i])
+                q = np.trim_zeros(q, 'b')
+                if (len(q) == 0):
+                    q = [0]
+                partial_poly[i,j] = np.polynomial.chebyshev.chebval(xs[i], q)
         elif (switch == 0):
             # if we do not use the Chebyshev basis
             tmp = poly[j]
@@ -53,12 +63,11 @@ def isolateIntervals(poly, n, intervals, switch):
                 partial_poly[i,j] = np.polynomial.polynomial.polyval(xs[i], tmp)
         else:
             #if we want to use the IDCT with the Chebyshev basis
-            alpha = (xs[-1] - xs[0]) / 2
-            shift = xs[-1] - alpha
-            s = sum([np.polynomial.Polynomial([shift, alpha])**i * c for i, c in enumerate(poly[j])])
-            c = np.polynomial.chebyshev.poly2cheb(s.coef)
-            tmp = np.zeros(deg_y + 1)
-            tmp[:len(c)] = c
+            s = [sum(x) for x in itertools.zip_longest(*[[comb(i, k) * alpha ** k * shift ** (i - k) * c for k in range(i + 1)] for i, c in enumerate(poly[j])], fillvalue=0)]
+            # s = sum([np.polynomial.Polynomial([shift, alpha])**i * c for i, c in enumerate(poly[j])])
+            tmp = np.polynomial.chebyshev.poly2cheb(s)
+            # tmp = np.zeros(deg_y + 1)
+            # tmp[:len(c)] = c
             partial_poly[:,j] = [(n * x + (tmp[0] / 2)) for x in idct(tmp, n=n)]
     for i in range(n):
         intervals[i] = subdivide(ys, 0, n - 1, partial_poly[i].tolist(), d)
@@ -74,8 +83,9 @@ parser.add_argument('n', type=int, help="size of the grid (number of subdivision
 parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
 parser.add_argument('-x', nargs=2, type=int, default=[-8,8], help="bounds on the x-axis")
 parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the y-axis")
-parser.add_argument('-clen', nargs='?', type=int, const=1, default=0, help="use the Chebyshev basis")
-parser.add_argument('-cheb', nargs='?', type=int, const=2, default=0, help="use the Chebyshev basis")
+parser.add_argument('-clen', nargs='?', type=int, const=1, default=0, help="use the Chebyshev basis and Clenshaw's scheme")
+parser.add_argument('-idct', nargs='?', type=int, const=2, default=0, help="use the Chebyshev basis and the IDCT")
+parser.add_argument('-hide', nargs='?', type=bool, const=True, default=False, help="hide the plot")
 
 args = parser.parse_args()
 
@@ -84,8 +94,8 @@ d = math.floor(np.log2(n))
 xs = np.linspace(args.x[0], args.x[1], n)
 ys = np.linspace(args.y[0], args.y[1], n)
 max_dy = ys[1] - ys[0]
-clen = args.clen
-cheb = args.cheb
+use_clen = args.clen
+use_idct = args.idct
 
 # Read the polynomial
 
@@ -109,30 +119,29 @@ with open(args.poly) as inf:
 # Core of the program
 
 intervals = np.empty(n, dtype="object")
-isolateIntervals(poly, n, intervals, clen + cheb)
+isolateIntervals(poly, n, intervals, use_clen + use_idct)
 
-# Show isolated intervals
+# # Show isolated intervals
 
-fig1 = plt.figure()
+if (not args.hide):
+    fig1 = plt.figure()
 
-ax1 = fig1.add_subplot(111, aspect='equal')
+    ax1 = fig1.add_subplot(111, aspect='equal')
 
-alpha = (xs[-1] - xs[0]) / 2
-shift = xs[-1] - alpha
-for i in range(n):
-    for e in intervals[i]:
-        if (cheb):
-            x = cos((2*i+1)*pi/(2 * n)) * alpha + shift
-            plt.plot([x, x], [ys[e[0]], ys[e[1]]], '-k')
-        else:
-            plt.plot([xs[i], xs[i]], [ys[e[0]], ys[e[1]]], '-k')
+    alpha = (xs[-1] - xs[0]) / 2
+    shift = xs[-1] - alpha
+    for i in range(n):
+        for e in intervals[i]:
+            if (use_idct):
+                x = cos((2*i+1)*pi/(2 * n)) * alpha + shift
+                plt.plot([x, x], [ys[e[0]], ys[e[1]]], '-k')
+            else:
+                plt.plot([xs[i], xs[i]], [ys[e[0]], ys[e[1]]], '-k')
 
-plt.xlim(xs[0],xs[-1])
-plt.ylim(ys[0],ys[-1])
-if (args.poly == default_file):
-    # draw a circle if the default file is used
-    circle = plt.Circle((0, 0), 2, color='r', fill=False)
-    ax1.add_artist(circle)
-plt.show()
-
-print("Exited without trouble")
+    plt.xlim(xs[0],xs[-1])
+    plt.ylim(ys[0],ys[-1])
+    if (args.poly == default_file):
+        # draw a circle if the default file is used
+        circle = plt.Circle((0, 0), 2, color='r', fill=False)
+        ax1.add_artist(circle)
+    plt.show()
