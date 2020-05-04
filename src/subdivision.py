@@ -13,6 +13,10 @@ from math import cos, pi
 from scipy.special import comb
 import itertools
 
+from codetiming import Timer
+
+import logging
+
 # Takes care of the decorators set for the profiling
 try:
     profile  # throws an exception when profile isn't defined
@@ -47,30 +51,39 @@ def isolateIntervals(poly, n, intervals, switch):
     for j in range(deg_y + 1):
         if (switch == 1):
             # if we want to use Clenshaw with the Chebyshev basis
-            tmp = np.polynomial.Polynomial(poly[j]).convert(kind=np.polynomial.Chebyshev)
-            tmp.convert(domain=[a, b], window=[a, b])
+            with Timer("conversion", logger=None):
+                tmp = np.polynomial.Polynomial(poly[j]).convert(kind=np.polynomial.Chebyshev)
+            with Timer("change", logger=None):
+                tmp.convert(domain=[a, b], window=[a, b])
+            # TO DO: sqrt of the degree
             q = tmp.coef
             q[np.abs(q) < 1e-15] = 0
             for i in range(n):
                 q = np.trim_zeros(q, 'b')
                 if (len(q) == 0):
                     q = [0]
-                partial_poly[i,j] = np.polynomial.chebyshev.chebval(xs[i], q)
+                with Timer("evaluation", logger=None):
+                    partial_poly[i,j] = np.polynomial.chebyshev.chebval(xs[i], q)
         elif (switch == 0):
             # if we do not use the Chebyshev basis
             tmp = poly[j]
             for i in range(n):
-                partial_poly[i,j] = np.polynomial.polynomial.polyval(xs[i], tmp)
+                with Timer("evaluation", logger=None):
+                    partial_poly[i,j] = np.polynomial.polynomial.polyval(xs[i], tmp)
         else:
             #if we want to use the IDCT with the Chebyshev basis
-            s = [sum(x) for x in itertools.zip_longest(*[[comb(i, k) * alpha ** k * shift ** (i - k) * c for k in range(i + 1)] for i, c in enumerate(poly[j])], fillvalue=0)]
+            with Timer("change", logger=None):
+                s = [sum(x) for x in itertools.zip_longest(*[[comb(i, k) * alpha ** k * shift ** (i - k) * c for k in range(i + 1)] for i, c in enumerate(poly[j])], fillvalue=0)]
             # s = sum([np.polynomial.Polynomial([shift, alpha])**i * c for i, c in enumerate(poly[j])])
-            tmp = np.polynomial.chebyshev.poly2cheb(s)
+            with Timer("conversion", logger=None):
+                tmp = np.polynomial.chebyshev.poly2cheb(s)
             # tmp = np.zeros(deg_y + 1)
             # tmp[:len(c)] = c
-            partial_poly[:,j] = [(n * x + (tmp[0] / 2)) for x in idct(tmp, n=n)]
+            with Timer("evaluation", logger=None):
+                partial_poly[:,j] = [(n * x + (tmp[0] / 2)) for x in idct(tmp, n=n)]
     for i in range(n):
-        intervals[i] = subdivide(ys, 0, n - 1, partial_poly[i].tolist(), d)
+        with Timer("subdivision", logger=None):
+            intervals[i] = subdivide(ys, 0, n - 1, partial_poly[i].tolist(), d)
 
 
 # Parse the input
@@ -121,7 +134,21 @@ with open(args.poly) as inf:
 intervals = np.empty(n, dtype="object")
 isolateIntervals(poly, n, intervals, use_clen + use_idct)
 
-# # Show isolated intervals
+# Logging
+
+SORT_ORDER = {"conversion": 0, "change": 1, "evaluation": 2, "subdivision": 3}
+sorted_dict = sorted(Timer.timers.items(), key=lambda x: SORT_ORDER[x[0]])
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler('subdivision_time.log', 'w')
+handler_format = logging.Formatter('%(message)s')
+logger.addHandler(handler)
+
+for key, value in sorted_dict:
+    logger.info(f"{key}\t{value}")
+
+# Show isolated intervals
 
 if (not args.hide):
     fig1 = plt.figure()
