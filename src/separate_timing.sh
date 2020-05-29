@@ -10,7 +10,7 @@ then
 fi
 mkdir tmp
 
-listResol=(32 64 128) #256 512 1024 2048)
+listResol=(32 64 128 256 512 1024 2048)
 
 # Computation
 
@@ -27,6 +27,7 @@ do
         echo -en "0\t0\t" >> tmp/temp_${file}_classic
         python3 subdivision.py $value -poly "$src" -hide; while read step duration remainder; do echo -en "${duration}\t" >> tmp/temp_${file}_classic; done < "subdivision_time.log"
         sed -i '$ s/.$/\n/' tmp/temp_${file}_classic
+        echo -en "0\t" >> tmp/temp_${file}_clen
         python3 subdivision.py $value -poly "$src" -clen -hide; while read step duration remainder; do echo -en "${duration}\t" >> tmp/temp_${file}_clen; done < "subdivision_time.log"
         sed -i '$ s/.$/\n/' tmp/temp_${file}_clen
         python3 subdivision.py $value -poly "$src" -idct -hide; while read step duration remainder; do echo -en "${duration}\t" >> tmp/temp_${file}_idct; done < "subdivision_time.log"
@@ -46,7 +47,7 @@ for file in $listFile
 do
     for method in $methods
     do
-    	head+="\t${file%.*}_${method}_co\t${file%.*}_${method}_ch\t${file%.*}_${method}_ev\t${file%.*}_${method}_su"
+    	head+="\t${file%.*}_${method}_ch\t${file%.*}_${method}_co\t${file%.*}_${method}_ev\t${file%.*}_${method}_su"
 	done
     paste tmp/temp_${file}_classic tmp/temp_${file}_clen tmp/temp_${file}_idct > tmp/temp_${file}
 done

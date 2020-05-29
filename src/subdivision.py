@@ -23,21 +23,37 @@ try:
 except NameError:
     profile = lambda x: x   # if it's not defined simply ignore the decorator.
 
+# Logger (the real one)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler('subdivision.log')
+handler_format = logging.Formatter('%(message)s')
+logger.addHandler(handler)
+
+# Functions
+
 @profile
 def subdivide(val, low, up, poly,r):
-    min = val[low]
-    max = val[up]
-    mid = int(low + (up - low) / 2)
-    median = (min + max) / 2
-    radius = (max - min) / 2
+    p = ft.arb_poly(poly)
 
-    a = ft.arb_poly(poly)(ft.arb(median,radius))
-    if 0 in a:
-        if r < 1:
-            return [(low, up)]
-        return subdivide(val, low, mid, poly, r - 1) + subdivide(val, mid, up, poly, r - 1)
-    else:
-        return []
+    # TO DO use an epsilon instead of r
+    def aux(low, up, r):
+        min = val[low]
+        max = val[up]
+        mid = int(low + (up - low) / 2)
+        median = (min + max) / 2
+        radius = (max - min) / 2
+
+        a = p(ft.arb(median,radius))
+        if 0 in a:
+            if r < 1:
+                return [(low, up)]
+            return aux(low, mid, r - 1) + aux(mid, up, r - 1)
+        else:
+            return []
+    
+    return aux(low, up, r)
 
 @profile
 def isolateIntervals(poly, n, intervals, switch):
@@ -48,35 +64,48 @@ def isolateIntervals(poly, n, intervals, switch):
     b = xs[-1]
     alpha = (xs[-1] - xs[0]) / 2
     shift = xs[-1] - alpha
+    deg_can = 0
+    deg_conv = 0
+    deg_ch = 0
+    deg_q = 0
+    deg_s = 0
+    deg_tmp = 0
     for j in range(deg_y + 1):
+        p = np.trim_zeros(poly[j], 'b')
+        if (len(p) == 0):
+            p = [0]
+        deg_can += len(p) - 1
         if (switch == 1):
             # if we want to use Clenshaw with the Chebyshev basis
             with Timer("conversion", logger=None):
-                tmp = np.polynomial.Polynomial(poly[j]).convert(kind=np.polynomial.Chebyshev)
-            with Timer("change", logger=None):
-                tmp.convert(domain=[a, b], window=[a, b])
+                tmp = np.polynomial.chebyshev.poly2cheb(p)
+            deg_conv += len(np.trim_zeros(tmp, 'b')) - 1
             # TO DO: sqrt of the degree
-            q = tmp.coef
-            q[np.abs(q) < 1e-15] = 0
+            tmp[np.abs(tmp) < 1e-15] = 0
+            tmp = np.trim_zeros(tmp, 'b')
+            if (len(tmp) == 0):
+                tmp = [0]
+            deg_q += len(tmp) - 1
             for i in range(n):
-                q = np.trim_zeros(q, 'b')
-                if (len(q) == 0):
-                    q = [0]
                 with Timer("evaluation", logger=None):
-                    partial_poly[i,j] = np.polynomial.chebyshev.chebval(xs[i], q)
+                    partial_poly[i,j] = np.polynomial.chebyshev.chebval(xs[i], tmp)
         elif (switch == 0):
             # if we do not use the Chebyshev basis
-            tmp = poly[j]
+            tmp = p
             for i in range(n):
                 with Timer("evaluation", logger=None):
                     partial_poly[i,j] = np.polynomial.polynomial.polyval(xs[i], tmp)
         else:
             #if we want to use the IDCT with the Chebyshev basis
             with Timer("change", logger=None):
-                s = [sum(x) for x in itertools.zip_longest(*[[comb(i, k) * alpha ** k * shift ** (i - k) * c for k in range(i + 1)] for i, c in enumerate(poly[j])], fillvalue=0)]
+                s = [sum(x) for x in itertools.zip_longest(*[[comb(i, k) * alpha ** k * shift ** (i - k) * c for k in range(i + 1)] for i, c in enumerate(p)], fillvalue=0)]
             # s = sum([np.polynomial.Polynomial([shift, alpha])**i * c for i, c in enumerate(poly[j])])
+            deg_s += len(s) - 1
+            deg_ch += len(np.trim_zeros(s, 'b')) - 1
             with Timer("conversion", logger=None):
                 tmp = np.polynomial.chebyshev.poly2cheb(s)
+            deg_tmp += len(tmp) - 1
+            deg_conv += len(np.trim_zeros(tmp, 'b')) - 1
             # tmp = np.zeros(deg_y + 1)
             # tmp[:len(c)] = c
             with Timer("evaluation", logger=None):
@@ -84,6 +113,25 @@ def isolateIntervals(poly, n, intervals, switch):
     for i in range(n):
         with Timer("subdivision", logger=None):
             intervals[i] = subdivide(ys, 0, n - 1, partial_poly[i].tolist(), d)
+    
+    logger.info(args.poly)
+    logger.info("="*len(args.poly))
+    if (switch == 1):
+        logger.info('Clenshaw polynomial degree')
+        logger.info(f"Before Chebyshev:\t{deg_x} -> {deg_can / (deg_y + 1)}")
+        logger.info(f"After conversion:\t{deg_conv / (deg_y + 1)}")
+        logger.info(f"After Clenshaw:\t{deg_q / (deg_y + 1)}")
+    elif (switch == 0):
+        logger.info('Classical polynomial degree')
+        logger.info(f"Actual polynomial:\t{deg_x} -> {deg_can / (deg_y + 1)}")
+    else:
+        logger.info('IDCT polynomial degree')
+        logger.info(f"Before Chebyshev:\t{deg_x} -> {deg_can / (deg_y + 1)}")
+        logger.info(f"After change:\t{deg_s / (deg_y + 1)} -> {deg_ch / (deg_y + 1)}")
+        logger.info(f"After conversion:\t{deg_tmp / (deg_y + 1)} -> {deg_conv / (deg_y + 1)}")
+    logger.info("")
+        
+
 
 
 # Parse the input
@@ -134,19 +182,19 @@ with open(args.poly) as inf:
 intervals = np.empty(n, dtype="object")
 isolateIntervals(poly, n, intervals, use_clen + use_idct)
 
-# Logging
+# Computation time logging
 
-SORT_ORDER = {"conversion": 0, "change": 1, "evaluation": 2, "subdivision": 3}
+SORT_ORDER = {"change": 0, "conversion": 1, "evaluation": 2, "subdivision": 3}
 sorted_dict = sorted(Timer.timers.items(), key=lambda x: SORT_ORDER[x[0]])
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.FileHandler('subdivision_time.log', 'w')
-handler_format = logging.Formatter('%(message)s')
-logger.addHandler(handler)
+time_logger = logging.getLogger("timing")
+time_logger.setLevel(logging.INFO)
+time_handler = logging.FileHandler('subdivision_time.log', 'w')
+time_handler.setFormatter(handler_format)
+time_logger.addHandler(time_handler)
 
 for key, value in sorted_dict:
-    logger.info(f"{key}\t{value}")
+    time_logger.info(f"{key}\t{value}")
 
 # Show isolated intervals
 
