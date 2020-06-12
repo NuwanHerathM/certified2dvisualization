@@ -10,7 +10,7 @@ then
 fi
 mkdir tmp
 
-listResol=(32 64 128) #256 512 1024 2048)
+listResol=(32 64 128 256 512 1024 2048)
 
 # Computation
 
@@ -24,10 +24,11 @@ do
 	src="../polys/$file"
 	for value in ${listResol[@]}
 	do
-		(/usr/bin/time -f "%e" python3 subdivision.py $value -poly "$src" -hide) 2>> tmp/temp_${file}_classic
-		(/usr/bin/time -f "%e" python3 subdivision.py $value -poly "$src" -clen -hide) 2>> tmp/temp_${file}_clen
-		(/usr/bin/time -f "%e" python3 subdivision.py $value -poly "$src" -idct -hide) 2>> tmp/temp_${file}_idct
+		(/usr/bin/time -f "%e" python3 main.py $value -poly "$src" -hide) 2>> tmp/temp_${file}_classic
+		(/usr/bin/time -f "%e" python3 main.py $value -poly "$src" -clen -hide) 2>> tmp/temp_${file}_clen
+		(/usr/bin/time -f "%e" python3 main.py $value -poly "$src" -idct -hide) 2>> tmp/temp_${file}_idct
 	done
+    ((var++))
     echo -ne "$var/$n\r"
 done
 echo -ne '\n'
