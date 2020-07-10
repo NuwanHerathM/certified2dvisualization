@@ -3,7 +3,6 @@ import numpy as np
 
 import flint as ft
 
-from scipy.fft import idct
 from math import cos, pi
 from scipy.special import comb
 import itertools
@@ -11,6 +10,8 @@ import itertools
 from codetiming import Timer
 
 import logging
+
+from idcthandler import IDCTHandler
 
 # Obsolete chunk of code
 # # Takes care of the decorators set for the profiling
@@ -36,6 +37,7 @@ class Subdivision:
         self.deg_x = deg_x
         self.deg_y = deg_y
         self.poly_file = poly_file
+        self.grid = None
 
     # Functions
 
@@ -115,7 +117,9 @@ class Subdivision:
                 # tmp = np.zeros(self.deg_y + 1)
                 # tmp[:len(c)] = c
                 with Timer("evaluation", logger=None):
-                    partial_poly[:,j] = [(n * x + (tmp[0] / 2)) for x in idct(tmp, n=n)]
+                    idct = IDCTHandler(tmp, n, self.ys[0], self.ys[-1])
+                    partial_poly[:,j] = idct.getResult()
+                    self.grid = idct.getGrid()
         intervals = np.empty(n, dtype="object")
         for i in range(n):
             with Timer("subdivision", logger=None):
@@ -139,3 +143,6 @@ class Subdivision:
         logger.info("")
 
         return intervals
+
+    def getGrid(self):
+        return self.grid

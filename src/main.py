@@ -83,6 +83,7 @@ if (not args.hide):
 
     alpha = (xs[-1] - xs[0]) / 2
     shift = xs[-1] - alpha
+    grid = sub.getGrid()
     for i in range(n):
         for e in intervals[i]:
             if (use_idct):
