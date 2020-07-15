@@ -88,6 +88,7 @@ if (not args.hide):
         for e in intervals[i]:
             if (use_idct):
                 x = cos((2*i+1)*pi/(2 * n)) * alpha + shift
+                x = grid[i]
                 plt.plot([x, x], [ys[e[0]], ys[e[1]]], '-k')
             else:
                 plt.plot([xs[i], xs[i]], [ys[e[0]], ys[e[1]]], '-k')

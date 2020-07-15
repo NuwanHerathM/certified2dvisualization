@@ -8,19 +8,19 @@ These are rather notes, in order to remind myself the main ways to run the progr
 Using the default polynomial (it displays the target curve in red):
 
 ```
-python3 subdivision.py 64
+python3 main.py 64
 ```
 
 Using the Chebychev basis:
 
 ```
-python3 subdivision.py 64 -cheb
+python3 main.py 64 -cheb
 ```
 
 Using another polynomial:
 
 ```
-python3 subdivision.py 512 -poly ../polys/random.poly
+python3 main.py 512 -poly ../polys/random.poly
 ```
 
 ## Profiling

@@ -117,7 +117,7 @@ class Subdivision:
                 # tmp = np.zeros(self.deg_y + 1)
                 # tmp[:len(c)] = c
                 with Timer("evaluation", logger=None):
-                    idct = IDCTHandler(tmp, n, self.ys[0], self.ys[-1])
+                    idct = IDCTHandler(p, n, self.ys[0], self.ys[-1])
                     partial_poly[:,j] = idct.getResult()
                     self.grid = idct.getGrid()
         intervals = np.empty(n, dtype="object")

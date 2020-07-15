@@ -1,5 +1,5 @@
 import numpy as np
-from math import cos, pi, floor
+from math import cos, pi, floor, acos, ceil
 from scipy.fft import idct
 
 class IDCTHandler:
@@ -21,16 +21,17 @@ class IDCTHandler:
         q1 = np.polynomial.chebyshev.poly2cheb(self.coef)
         u1 = [(self.n1 * x + (q1[0] / 2)) for x in idct(q1, n=self.n1)]
         
-        cos2 = [x for x in (cos((2*i+1)*pi/(2 * self.n2)) for i in range(self.n2)) if abs(x) > 1/self.alpha] # From Python 3.8 this could be written with an assignment expression
+        n2 = ceil((self.n2 - 1) /  2 * pi / acos(1/self.alpha))
+        cos2 = [x for x in (cos((2*i+1)*pi/(2 * n2)) for i in range(n2)) if abs(x) >= 1/self.alpha] # From Python 3.8 this could be written with an assignment expression
         pow2 = np.array([e**self.d for e in cos2])
         q2 = np.polynomial.chebyshev.poly2cheb(self.coef[::-1])
-        u2 = [(self.n2 * x + (q2[0] / 2)) for  x in idct(q2, n=self.n2)]
+        u2 = [(n2 * x + (q2[0] / 2)) for  x in idct(q2, n=n2)]
         l_u = len(u2)
         l_pow = len(pow2)
         for i in range(l_u - l_pow):
             u2.pop(l_pow // 2)
         t2 = np.divide(u2,pow2)
-
+ 
         (t2_1,t2_2) = np.split(t2,[l_pow // 2])
         res = np.concatenate((np.flip(t2_1),u1,np.flip(t2_2)))
 
@@ -43,10 +44,13 @@ class IDCTHandler:
         inv_cos_2_2 = [1/x for x in cos2_2]
         self.grid = inv_cos_2_1 + cos1 + inv_cos_2_2
 
-        return idct(self.coef, n=self.n)
+        return res
     
     def getResult(self):
         self.n1 = floor(self.n / self.alpha)
+        # guarantee that self.n2 is even
+        if ((self.n - self.n1) % 2 == 1):
+            self.n1 += 1
         self.n2 = self.n - self.n1
         if (self.n1 >= self.d and self.n2 >= self.d):
             return self.aux1()
