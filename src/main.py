@@ -59,6 +59,9 @@ sub = Subdivision(xs, ys, deg_x, deg_y, args.poly)
 
 intervals = sub.isolateIntervals(poly, n, use_clen + use_idct)
 
+# sub.drawSubdivisions()
+sub.printComplexity()
+
 # Computation time logging
 
 SORT_ORDER = {"change": 0, "conversion": 1, "evaluation": 2, "subdivision": 3}

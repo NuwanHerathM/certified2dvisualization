@@ -4,14 +4,15 @@ import numpy as np
 import flint as ft
 
 from math import cos, pi
-from scipy.special import comb
-import itertools
 
 from codetiming import Timer
 
 import logging
 
 from idcthandler import IDCTHandler
+
+from complexity import Complexity
+from branch import Branch
 
 # Obsolete chunk of code
 # # Takes care of the decorators set for the profiling
@@ -38,15 +39,16 @@ class Subdivision:
         self.deg_y = deg_y
         self.poly_file = poly_file
         self.grid = None
+        self.cmplxty = Complexity()
 
     # Functions
 
     # @profile
-    @staticmethod
-    def subdivide(val, low, up, poly):
+    # @staticmethod
+    def __subdivide(self, val, low, up, poly):
         p = ft.arb_poly(poly)
 
-        def aux(low, up):
+        def aux(low, up, branch, node=None):
             min = val[low]
             max = val[up]
             mid = int(low + (up - low) / 2)
@@ -55,13 +57,16 @@ class Subdivision:
 
             a = p(ft.arb(median,radius))
             if 0 in a:
+                new_node = self.cmplxty.posIntEval(branch, node)
                 if up - low == 1:
                     return [(low, up)]
-                return aux(low, mid) + aux(mid, up)
+                return aux(low, mid, Branch.LEFT, new_node) + aux(mid, up, Branch.RIGHT, new_node)
             else:
+                self.cmplxty.negIntEval(branch, node)
                 return []
-        
-        return aux(low, up)
+        res = aux(low, up, Branch.ROOT)
+        self.cmplxty.endSubdivision()
+        return res
 
     # @profile
     def isolateIntervals(self, poly, n, switch):
@@ -105,25 +110,15 @@ class Subdivision:
                         partial_poly[i,j] = np.polynomial.polynomial.polyval(self.xs[i], tmp)
             else:
                 #if we want to use the IDCT with the Chebyshev basis
-                with Timer("change", logger=None):
-                    s = [sum(x) for x in itertools.zip_longest(*[[comb(i, k) * alpha ** k * shift ** (i - k) * c for k in range(i + 1)] for i, c in enumerate(p)], fillvalue=0)]
-                # s = sum([np.polynomial.Polynomial([shift, alpha])**i * c for i, c in enumerate(poly[j])])
-                deg_s += len(s) - 1
-                deg_ch += len(np.trim_zeros(s, 'b')) - 1
-                with Timer("conversion", logger=None):
-                    tmp = np.polynomial.chebyshev.poly2cheb(s)
-                deg_tmp += len(tmp) - 1
-                deg_conv += len(np.trim_zeros(tmp, 'b')) - 1
-                # tmp = np.zeros(self.deg_y + 1)
-                # tmp[:len(c)] = c
-                with Timer("evaluation", logger=None):
-                    idct = IDCTHandler(p, n, self.ys[0], self.ys[-1])
-                    partial_poly[:,j] = idct.getResult()
-                    self.grid = idct.getGrid()
+                idct = IDCTHandler(p, n, self.ys[0], self.ys[-1])
+                self.cmplxty.incrIDCT()
+                partial_poly[:,j] = idct.getResult()
+                self.grid = idct.getGrid()
+                deg_s, deg_ch, deg_tmp, deg_conv = map(sum,zip((deg_s, deg_ch, deg_tmp, deg_conv),idct.getDegrees()))
         intervals = np.empty(n, dtype="object")
         for i in range(n):
             with Timer("subdivision", logger=None):
-                intervals[i] = Subdivision.subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
+                intervals[i] = self.__subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
         
         logger.info(self.poly_file)
         logger.info("="*len(self.poly_file))
@@ -146,3 +141,9 @@ class Subdivision:
 
     def getGrid(self):
         return self.grid
+
+    def drawSubdivisions(self):
+        self.cmplxty.draw()
+    
+    def printComplexity(self):
+        print(self.cmplxty)

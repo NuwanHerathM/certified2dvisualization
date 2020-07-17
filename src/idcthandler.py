@@ -1,6 +1,9 @@
 import numpy as np
 from math import cos, pi, floor, acos, ceil
 from scipy.fft import idct
+from codetiming import Timer
+import itertools
+from scipy.special import comb
 
 class IDCTHandler:
 
@@ -13,7 +16,25 @@ class IDCTHandler:
         self.c = (lower + upper) / 2
         self.alpha = (upper - lower) / 2
         self.grid = None
+        self.deg_s = 0
+        self.deg_ch = 0
+        self.deg_tmp = 0
+        self.deg_conv = 0
     
+    def noDCT(self):
+        with Timer("change", logger=None):
+            s = [sum(x) for x in itertools.zip_longest(*[[comb(i, k) * self.alpha ** k * self.c ** (i - k) * c for k in range(i + 1)] for i, c in enumerate(self.coef)], fillvalue=0)]
+        # TO DO: correct computation when the polynomial is of degree 0 (it returns -1 for deg_ch and deg_conv)
+        self.deg_s = len(s) - 1
+        self.deg_ch = len(np.trim_zeros(s, 'b')) - 1
+        with Timer("conversion", logger=None):
+            tmp = np.polynomial.chebyshev.poly2cheb(s)
+        self.deg_tmp = len(tmp) - 1
+        self.deg_conv = len(np.trim_zeros(tmp, 'b')) - 1
+        with Timer("evaluation", logger=None):
+            res = [(self.n * x + (tmp[0] / 2)) for x in idct(tmp, n=self.n)]
+        return res
+
     def aux1(self):
         p = np.polynomial.Polynomial(self.coef)
         cos1 = [cos((2*i+1)*pi/(2 * self.n1)) for i in range(self.n1)]
@@ -55,7 +76,10 @@ class IDCTHandler:
         if (self.n1 >= self.d and self.n2 >= self.d):
             return self.aux1()
         else:
-            print("...")
+            return self.noDCT()
     
     def getGrid(self):
         return self.grid
+
+    def getDegrees(self):
+        return (self.deg_s, self.deg_ch, self.deg_tmp, self.deg_conv)
