@@ -18,7 +18,7 @@ dirname = os.path.dirname(__file__)
 default_file = os.path.join(dirname, '../polys/circle.poly')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('n', type=int, help="size of the grid (number of subdivisions)")
+parser.add_argument('n', type=int, help="size of the grid (number of subdivision intervals)")
 parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
 parser.add_argument('-x', nargs=2, type=int, default=[-8,8], help="bounds on the x-axis")
 parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the y-axis")
@@ -61,6 +61,7 @@ intervals = sub.isolateIntervals(poly, n, use_clen + use_idct)
 
 # sub.drawSubdivisions()
 sub.printComplexity()
+# sub.saveComplexity()
 
 # Computation time logging
 

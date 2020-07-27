@@ -39,7 +39,7 @@ class Subdivision:
         self.deg_y = deg_y
         self.poly_file = poly_file
         self.grid = None
-        self.cmplxty = Complexity()
+        self.cmplxty = Complexity(deg_x, len(xs))
 
     # Functions
 
@@ -81,7 +81,6 @@ class Subdivision:
         deg_conv = 0
         deg_ch = 0
         deg_q = 0
-        deg_s = 0
         deg_tmp = 0
         for j in range(self.deg_y + 1):
             p = np.trim_zeros(poly[j], 'b')
@@ -102,39 +101,43 @@ class Subdivision:
                 for i in range(n):
                     with Timer("evaluation", logger=None):
                         partial_poly[i,j] = np.polynomial.chebyshev.chebval(self.xs[i], tmp)
+                    self.cmplxty.incrClenshaw()
             elif (switch == 0):
                 # if we do not use the Chebyshev basis
                 tmp = p
                 for i in range(n):
                     with Timer("evaluation", logger=None):
                         partial_poly[i,j] = np.polynomial.polynomial.polyval(self.xs[i], tmp)
+                    self.cmplxty.incrHorner()
             else:
                 #if we want to use the IDCT with the Chebyshev basis
                 idct = IDCTHandler(p, n, self.ys[0], self.ys[-1])
                 self.cmplxty.incrIDCT()
                 partial_poly[:,j] = idct.getResult()
                 self.grid = idct.getGrid()
-                deg_s, deg_ch, deg_tmp, deg_conv = map(sum,zip((deg_s, deg_ch, deg_tmp, deg_conv),idct.getDegrees()))
+                deg_ch, deg_conv = map(sum,zip((deg_ch, deg_conv),idct.getDegrees()))
         intervals = np.empty(n, dtype="object")
         for i in range(n):
             with Timer("subdivision", logger=None):
                 intervals[i] = self.__subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
         
+        self.cmplxty.log()
+
         logger.info(self.poly_file)
         logger.info("="*len(self.poly_file))
         if (switch == 1):
             logger.info('Clenshaw polynomial degree')
-            logger.info(f"Before Chebyshev:\t{self.deg_x} -> {deg_can / (self.deg_y + 1)}")
+            logger.info(f"Before Chebyshev:\t{deg_can / (self.deg_y + 1)}")
             logger.info(f"After conversion:\t{deg_conv / (self.deg_y + 1)}")
             logger.info(f"After Clenshaw:\t{deg_q / (self.deg_y + 1)}")
         elif (switch == 0):
             logger.info('Classical polynomial degree')
-            logger.info(f"Actual polynomial:\t{self.deg_x} -> {deg_can / (self.deg_y + 1)}")
+            logger.info(f"Actual polynomial:\t{deg_can / (self.deg_y + 1)}")
         else:
             logger.info('IDCT polynomial degree')
-            logger.info(f"Before Chebyshev:\t{self.deg_x} -> {deg_can / (self.deg_y + 1)}")
-            logger.info(f"After change:\t{deg_s / (self.deg_y + 1)} -> {deg_ch / (self.deg_y + 1)}")
-            logger.info(f"After conversion:\t{deg_tmp / (self.deg_y + 1)} -> {deg_conv / (self.deg_y + 1)}")
+            logger.info(f"Before Chebyshev:\t{deg_can / (self.deg_y + 1)}")
+            logger.info(f"After change:\t{deg_ch / (self.deg_y + 1)}")
+            logger.info(f"After conversion:\t{deg_conv / (self.deg_y + 1)}")
         logger.info("")
 
         return intervals
@@ -147,3 +150,6 @@ class Subdivision:
     
     def printComplexity(self):
         print(self.cmplxty)
+    
+    def saveComplexity(self):
+        self.cmplxty.log()

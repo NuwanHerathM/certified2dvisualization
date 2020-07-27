@@ -1,15 +1,36 @@
 from branch import Branch
 from binarytree import Node
 
+import logging
+
+import math
+
+# Logger
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler('complexity.log', 'w')
+handler_format = logging.Formatter('%(message)s')
+logger.addHandler(handler)
+
 class Complexity:
-    def __init__(self):
+    def __init__(self, d, n):
         self.root = None
         self.subdivision_trees = []
         self.idct_count = 0
+        self.horner_count = 0
+        self.clenshaw_count = 0
+        self.d = d
+        self.n = n
     
     def __str__(self):
         total = sum(tree.size for tree in self.subdivision_trees)
-        return "Number of IDCTs: %s\nNumber of interval evaluations: %s" % (self.idct_count, total)
+        n_logn =  round(self.n + math.log2(self.n))
+        return ("evaluation\t{}\n".format(self.horner_count * self.d + self.clenshaw_count * self.d + self.idct_count * n_logn) +
+                "subdivision\t{}".format(total * self.d))
+    
+    def log(self):
+        logger.info(self)
 
     def endSubdivision(self):
         if self.root is not None:
@@ -40,6 +61,12 @@ class Complexity:
     
     def incrIDCT(self):
         self.idct_count += 1
+    
+    def incrHorner(self):
+        self.horner_count += 1
+    
+    def incrClenshaw(self):
+        self.clenshaw_count += 1
     
     def draw(self):
         for tree in self.subdivision_trees:
