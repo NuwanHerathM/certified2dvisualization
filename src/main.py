@@ -25,6 +25,7 @@ parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the
 parser.add_argument('-clen', nargs='?', type=int, const=1, default=0, help="use the Chebyshev basis and Clenshaw's scheme")
 parser.add_argument('-idct', nargs='?', type=int, const=2, default=0, help="use the Chebyshev basis and the IDCT")
 parser.add_argument('-hide', nargs='?', type=bool, const=True, default=False, help="hide the plot")
+parser.add_argument('-save', nargs='?', type=bool, const=True, default=False, help="save the plot in the output directory")
 
 args = parser.parse_args()
 
@@ -45,13 +46,7 @@ with open(args.poly) as inf:
         print("Empty file.")
         exit()
 
-poly = np.empty((deg_y + 1, deg_x + 1))
-
-with open(args.poly) as inf:
-    lines = inf.readlines()
-    for i in range(deg_y + 1):
-        for j in range(deg_x + 1):
-            poly[i,j] = lines[i].split(" ")[j]
+poly = np.loadtxt(args.poly, dtype=int)
 
 # Core of the program
 
@@ -60,8 +55,7 @@ sub = Subdivision(xs, ys, deg_x, deg_y, args.poly)
 intervals = sub.isolateIntervals(poly, n, use_clen + use_idct)
 
 # sub.drawSubdivisions()
-sub.printComplexity()
-# sub.saveComplexity()
+# sub.printComplexity()
 
 # Computation time logging
 
@@ -80,7 +74,7 @@ for key, value in sorted_dict:
 
 # Show isolated intervals
 
-if (not args.hide):
+if (not args.hide or args.save):
     fig1 = plt.figure()
 
     ax1 = fig1.add_subplot(111, aspect='equal')
@@ -91,7 +85,7 @@ if (not args.hide):
     for i in range(n):
         for e in intervals[i]:
             if (use_idct):
-                x = cos((2*i+1)*pi/(2 * n)) * alpha + shift
+                # x = cos((2*i+1)*pi/(2 * n)) * alpha + shift
                 x = grid[i]
                 plt.plot([x, x], [ys[e[0]], ys[e[1]]], '-k')
             else:
@@ -103,4 +97,9 @@ if (not args.hide):
         # draw a circle if the default file is used
         circle = plt.Circle((0, 0), 2, color='r', fill=False)
         ax1.add_artist(circle)
-    plt.show()
+    
+    if args.save:
+        filename = os.path.splitext(os.path.basename(args.poly))[0]
+        plt.savefig(f"../output/{filename}_{n-1}.png", bbox_inches='tight')
+    if not args.hide:
+        plt.show()

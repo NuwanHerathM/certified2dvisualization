@@ -22,15 +22,3 @@ Using another polynomial:
 ```
 python3 main.py 512 -poly ../polys/random.poly
 ```
-
-## Profiling
-
-### Prerequisite
-
-https://github.com/rkern/line_profiler
-
-### The main command required
-
-```
-kernprof -lv subdivision.py 1024 -poly ../polys/random.poly
-```

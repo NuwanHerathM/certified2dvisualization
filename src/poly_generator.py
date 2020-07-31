@@ -18,6 +18,4 @@ print(matrix)
 outfile = os.path.join(args.dir, args.filename)
 print(outfile)
 
-with open(outfile,'wb') as f:
-    for line in matrix:
-        f.write(" ".join(str(x) for x in line) + "\n")
+np.savetxt(outfile, matrix, fmt='%d')

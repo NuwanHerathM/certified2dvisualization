@@ -14,12 +14,6 @@ from idcthandler import IDCTHandler
 from complexity import Complexity
 from branch import Branch
 
-# Obsolete chunk of code
-# # Takes care of the decorators set for the profiling
-# try:
-#     profile  # throws an exception when profile isn't defined
-# except NameError:
-#     profile = lambda x: x   # if it's not defined simply ignore the decorator.
 
 # Logger
 
@@ -43,10 +37,11 @@ class Subdivision:
 
     # Functions
 
-    # @profile
-    # @staticmethod
     def __subdivide(self, val, low, up, poly):
         p = ft.arb_poly(poly)
+        p_np = np.polynomial.polynomial.Polynomial(poly)
+        poly_der = np.polynomial.polynomial.polyder(poly).tolist()
+        p_der = ft.arb_poly(poly_der)
 
         def aux(low, up, branch, node=None):
             min = val[low]
@@ -55,10 +50,13 @@ class Subdivision:
             median = (min + max) / 2
             radius = (max - min) / 2
 
-            a = p(ft.arb(median,radius))
+            ball = ft.arb(median,radius)
+            a = p(ball)
             if 0 in a:
                 new_node = self.cmplxty.posIntEval(branch, node)
-                if up - low == 1:
+                if (up - low == 1 or 0 not in p_der(ball)):
+                    if p_np(min) * p_np(max) < 0:
+                        return []
                     return [(low, up)]
                 return aux(low, mid, Branch.LEFT, new_node) + aux(mid, up, Branch.RIGHT, new_node)
             else:
@@ -68,7 +66,6 @@ class Subdivision:
         self.cmplxty.endSubdivision()
         return res
 
-    # @profile
     def isolateIntervals(self, poly, n, switch):
         partial_poly = np.empty((n, self.deg_y + 1), dtype=object)
         rad = (self.ys[-1] - self.ys[0]) / (2 * (n - 1))
@@ -150,6 +147,3 @@ class Subdivision:
     
     def printComplexity(self):
         print(self.cmplxty)
-    
-    def saveComplexity(self):
-        self.cmplxty.log()

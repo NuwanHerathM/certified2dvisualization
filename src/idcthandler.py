@@ -34,6 +34,9 @@ class IDCTHandler:
         self.deg_conv = len(tmp) - 1
         with Timer("evaluation", logger=None):
             res = [(self.n * x + (tmp[0] / 2)) for x in idct(tmp, n=self.n)]
+        
+        self.grid = [cos((2*i+1)*pi/(2 * self.n)) * self.alpha + self.c for i in range(self.n)]
+
         return res
 
     def aux1(self):

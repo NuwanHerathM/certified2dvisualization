@@ -4,13 +4,12 @@
 
 listFile="random.poly nix_100 nix_102 random_100.poly"
 
-if [ -d tmp ]
-then
-	rm -r tmp
-fi
+rm -rf tmp
 mkdir tmp
 
 listResol=(32 64 128 256 512 1024 2048)
+
+outfile="../output/timing.out"
 
 # Computation
 
@@ -43,21 +42,21 @@ do
 	paste tmp/temp_${file}_classic tmp/temp_${file}_clen tmp/temp_${file}_idct > tmp/temp_${file}
 done
 
-if [ -f timing.out ]
+if [ -f $outfile ]
 then
-	rm timing.out
+	rm $outfile
 fi
 for value in ${listResol[@]}
 do
-	echo $value >> timing.out
+	echo $value >> $outfile
 done
 for file in $listFile
 do
-	paste timing.out tmp/temp_$file > tmp/temp
-	mv tmp/temp timing.out
+	paste $outfile tmp/temp_$file > tmp/temp
+	mv tmp/temp $outfile
 done
 
-sed -i '1 i\'${head} timing.out
+sed -i '1 i\'${head} $outfile
 
 # Cleaning
 

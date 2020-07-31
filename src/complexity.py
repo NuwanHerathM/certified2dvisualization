@@ -22,11 +22,12 @@ class Complexity:
         self.clenshaw_count = 0
         self.d = d
         self.n = n
+        self.coef_idct = 2
     
     def __str__(self):
         total = sum(tree.size for tree in self.subdivision_trees)
         n_logn =  round(self.n + math.log2(self.n))
-        return ("evaluation\t{}\n".format(self.horner_count * self.d + self.clenshaw_count * self.d + self.idct_count * n_logn) +
+        return ("evaluation\t{}\n".format(self.horner_count * self.d + self.clenshaw_count * self.d + self.idct_count * n_logn * self.coef_idct) +
                 "subdivision\t{}".format(total * self.d))
     
     def log(self):
