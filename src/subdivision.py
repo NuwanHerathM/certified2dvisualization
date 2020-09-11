@@ -39,7 +39,6 @@ class Subdivision:
 
     def __subdivide(self, val, low, up, poly):
         p = ft.arb_poly(poly)
-        p_np = np.polynomial.polynomial.Polynomial(poly)
         poly_der = np.polynomial.polynomial.polyder(poly).tolist()
         p_der = ft.arb_poly(poly_der)
 
@@ -55,7 +54,7 @@ class Subdivision:
             if 0 in a:
                 new_node = self.cmplxty.posIntEval(branch, node)
                 if (up - low == 1 or 0 not in p_der(ball)):
-                    if p_np(min) * p_np(max) < 0:
+                    if p(min) * p(max) > 0:
                         return []
                     return [(low, up)]
                 return aux(low, mid, Branch.LEFT, new_node) + aux(mid, up, Branch.RIGHT, new_node)
