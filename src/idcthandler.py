@@ -46,11 +46,15 @@ class IDCTHandler:
             i_min = ceil(self.N_z / pi * acos(self.plus) - 0.5)
             i_max = ceil(self.N_z / pi * acos(self.minus) - 0.5)
             cos_z = [cos((2 * i + 1) * pi / (2 * self.N_z)) for i in range(i_min, i_max + 1)]
-            q_z = np.polynomial.chebyshev.poly2cheb(self.coef)
-            u_z = [(self.N_z * x + (q_z[0] / 2)) for x in idct(q_z, n=self.N_z)][i_min:i_max+1]
+            with Timer("conversion", logger=None):
+                q_z = np.polynomial.chebyshev.poly2cheb(self.coef)
+            with Timer("evaluation", logger=None):
+                u_z = [(self.N_z * x + (q_z[0] / 2)) for x in idct(q_z, n=self.N_z)][i_min:i_max+1]
         
-        inv_coef = self.coef[::-1]
-        q_inv = np.polynomial.chebyshev.poly2cheb(inv_coef)
+        with Timer("change", logger=None):
+            inv_coef = self.coef[::-1]
+        with Timer("conversion", logger=None):
+            q_inv = np.polynomial.chebyshev.poly2cheb(inv_coef)
 
         inv_cos_m = []
         t_m = []
@@ -60,9 +64,11 @@ class IDCTHandler:
             cos_m = [cos((2 * i + 1) * pi / (2 * self.N_m)) for i in range(i_min, i_max + 1)]
             inv_cos_m = list(map(lambda x: 1 / x, cos_m))
             inv_cos_m.reverse()
-            u_m = [(self.N_m * x + (q_inv[0] / 2)) for x in idct(q_inv, n=self.N_m)][i_min:i_max+1]
-            pow_m = np.array([e**self.d for e in cos_m])
-            t_m = np.divide(u_m, pow_m)
+            with Timer("evaluation", logger=None):
+                u_m = [(self.N_m * x + (q_inv[0] / 2)) for x in idct(q_inv, n=self.N_m)][i_min:i_max+1]
+            with Timer("change", logger=None):
+                pow_m = np.array([e**self.d for e in cos_m])
+                t_m = np.divide(u_m, pow_m)
         
         inv_cos_p = []
         t_p = []
@@ -72,9 +78,11 @@ class IDCTHandler:
             cos_p = [cos((2 * i + 1) * pi / (2 * self.N_p)) for i in range(i_min, i_max + 1)]
             inv_cos_p = list(map(lambda x: 1 / x, cos_p))
             inv_cos_p.reverse()
-            u_p = [(self.N_p * x + (q_inv[0] / 2)) for x in idct(q_inv, n=self.N_p)][i_min:i_max+1]
-            pow_p = np.array([e**self.d for e in cos_p])
-            t_p = np.divide(u_p, pow_p)
+            with Timer("evaluation", logger=None):
+                u_p = [(self.N_p * x + (q_inv[0] / 2)) for x in idct(q_inv, n=self.N_p)][i_min:i_max+1]
+            with Timer("change", logger=None):
+                pow_p = np.array([e**self.d for e in cos_p])
+                t_p = np.divide(u_p, pow_p)
         
         res = np.concatenate((np.flip(t_m), u_z, np.flip(t_p)))
         self.grid = inv_cos_m + cos_z + inv_cos_p
