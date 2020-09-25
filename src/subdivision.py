@@ -1,4 +1,4 @@
-import os
+import subprocess
 
 import numpy as np
 
@@ -42,6 +42,7 @@ class Subdivision:
         p = ft.arb_poly(poly)
         poly_der = np.polynomial.polynomial.polyder(poly).tolist()
         p_der = ft.arb_poly(poly_der)
+        self.cmplxty.resetSubdivision()
 
         def aux(low, up, branch, node=None):
             min = val[low]
@@ -117,8 +118,21 @@ class Subdivision:
         for i in range(n):
             with Timer("subdivision", logger=None):
                 intervals[i] = self.__subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
+            # l = partial_poly[i].tolist()
+            # with open('tmp_poly', 'w') as f:
+            #     f.write('{:d}\n'.format(len(l) - 1))
+            #     for v in l:
+            #         f.write('{:d}\n'.format(round(v)))
+            # command = '../../anewdsc/test_descartes_linux64 --subdivision 1 --newton 0 --truncate 0 --sqrfree 0 --intprog 0 tmp_poly'
+            # process = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+            # outs, errs = process.communicate()
+            # intvl_nb = int(errs.splitlines()[2].split('=')[1])
+            # # print(f"{intvl_nb}\t{self.cmplxty.subTreeSize()}")
+            # self.cmplxty.descartes(intvl_nb)
+            # # self.cmplxty.leaves()
         
         self.cmplxty.log()
+        # self.cmplxty.subdivision_analysis()
 
         logger.info(self.poly_file)
         logger.info("="*len(self.poly_file))
