@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 
 import math
 from math import cos, pi
@@ -74,6 +75,25 @@ for key, value in sorted_dict:
 
 # Show isolated intervals
 
+def merge(intervals):
+    """Return the union of the intervals."""
+
+    iterator = iter(intervals)
+    res = []
+    last = (-1,-1)
+    while True:
+        try:
+            item = next(iterator)
+        except StopIteration:
+            break  # Iterator exhausted: stop the loop
+        else:
+            if last[1] == item[0]:
+                last = (last[0], item[1])
+            else:
+                res.append(item)
+                last = item
+    return res
+
 if (not args.hide or args.save):
     fig1 = plt.figure()
 
@@ -83,9 +103,8 @@ if (not args.hide or args.save):
     shift = xs[-1] - alpha
     grid = sub.getGrid()
     for i in range(n):
-        for e in intervals[i]:
+        for e in merge(intervals[i]):
             if (use_idct):
-                # x = cos((2*i+1)*pi/(2 * n)) * alpha + shift
                 x = grid[i]
                 plt.plot([x, x], [ys[e[0]], ys[e[1]]], '-k')
             else:
