@@ -27,12 +27,13 @@ logger.addHandler(handler)
 
 class Subdivision:
 
-    def __init__(self, xs, ys, deg_x, deg_y, poly_file):
+    def __init__(self, xs, ys, deg_x, deg_y, poly_file, use_der):
         self.xs = xs
         self.ys = ys
         self.deg_x = deg_x
         self.deg_y = deg_y
         self.poly_file = poly_file
+        self.use_der = use_der
         self.grid = None
         self.cmplxty = Complexity(deg_x, len(xs))
 
@@ -41,7 +42,7 @@ class Subdivision:
     def __subdivide(self, val, low, up, poly):
         p = ft.arb_poly(poly)
         poly_der = np.polynomial.polynomial.polyder(poly).tolist()
-        # p_der = ft.arb_poly(poly_der)
+        p_der = ft.arb_poly(poly_der)
         self.cmplxty.resetSubdivision()
 
         def aux(low, up, branch, node=None):
@@ -55,9 +56,9 @@ class Subdivision:
             a = p(ball)
             if 0 in a:
                 new_node = self.cmplxty.posIntEval(branch, node)
-                if (up - low == 1):# or 0 not in p_der(ball)):
-                    # if p(min) * p(max) > 0:
-                    #     return []
+                if (up - low == 1 or (self.use_der and 0 not in p_der(ball))):
+                    if self.use_der and p(min) * p(max) > 0:
+                        return []
                     return [(low, up)]
                 return aux(low, mid, Branch.LEFT, new_node) + aux(mid, up, Branch.RIGHT, new_node)
             else:
@@ -122,7 +123,7 @@ class Subdivision:
             with open('tmp_poly', 'w') as f:
                 f.write('{:d}\n'.format(len(l) - 1))
                 for v in l:
-                    f.write('{:d}\n'.format(round(v)))
+                    f.write('{:d}\n'.format(int(round(v))))
             command = 'test_descartes --subdivision 1 --newton 0 --truncate 0 --sqrfree 0 --intprog 0 tmp_poly'
             process = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
             outs, errs = process.communicate()

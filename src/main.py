@@ -27,6 +27,7 @@ parser.add_argument('-clen', nargs='?', type=int, const=1, default=0, help="use 
 parser.add_argument('-idct', nargs='?', type=int, const=2, default=0, help="use the Chebyshev basis and the IDCT")
 parser.add_argument('-hide', nargs='?', type=bool, const=True, default=False, help="hide the plot")
 parser.add_argument('-save', nargs='?', type=bool, const=True, default=False, help="save the plot in the output directory")
+parser.add_argument('-der', nargs='?', type=bool, const=True, default=False, help="use the derivative as a subdivision termination criterion")
 
 args = parser.parse_args()
 
@@ -51,7 +52,7 @@ poly = np.loadtxt(args.poly, dtype=int)
 
 # Core of the program
 
-sub = Subdivision(xs, ys, deg_x, deg_y, args.poly)
+sub = Subdivision(xs, ys, deg_x, deg_y, args.poly, args.der)
 
 intervals = sub.isolateIntervals(poly, n, use_clen + use_idct)
 
@@ -96,6 +97,9 @@ def merge(intervals):
 
 if (not args.hide or args.save):
     fig1 = plt.figure()
+    base = os.path.basename(args.poly)
+    method = "clenshaw" * use_clen + "idct" * (use_idct - 1) + "classic" * (1 - max(use_clen, use_idct - 1))
+    fig1.suptitle(f"{os.path.splitext(base)[0]}: n={n - 1}, " + method)
 
     ax1 = fig1.add_subplot(111, aspect='equal')
 

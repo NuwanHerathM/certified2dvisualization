@@ -136,9 +136,12 @@ class IDCTHandler:
             b = b and (self.N_p >= self.d)
         
         if b:
+            # print("new")
             return self.aux()
         else:
-            return self.old()
+            # print("old")
+            print("The polynomial has been troncated.")
+            return self.aux()
     
     def getGrid(self):
         return self.grid
