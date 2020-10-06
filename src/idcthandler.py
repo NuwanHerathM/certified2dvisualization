@@ -19,26 +19,6 @@ class IDCTHandler:
         self.deg_ch = 0
         self.deg_conv = 0
     
-    def old(self):
-        with Timer("change", logger=None):
-            s = [sum(x) for x in itertools.zip_longest(*[[comb(i, k) * self.alpha ** k * self.c ** (i - k) * c for k in range(i + 1)] for i, c in enumerate(self.coef)], fillvalue=0)]
-        s = np.trim_zeros(s, 'b')
-        if (len(s) == 0):
-            s = [0]
-        self.deg_ch = len(s) - 1
-        with Timer("conversion", logger=None):
-            tmp = np.polynomial.chebyshev.poly2cheb(s)
-        tmp = np.trim_zeros(tmp, 'b')
-        if (len(tmp) == 0):
-            tmp = [0]
-        self.deg_conv = len(tmp) - 1
-        with Timer("evaluation", logger=None):
-            res = [(self.n * x + (tmp[0] / 2)) for x in idct(tmp, n=self.n)]
-        
-        self.grid = [cos((2*i+1)*pi/(2 * self.n)) * self.alpha + self.c for i in range(self.n)]
-
-        return res
-    
     def aux(self):
         cos_z = []
         u_z = []
@@ -135,13 +115,9 @@ class IDCTHandler:
             
             b = b and (self.N_p >= self.d)
         
-        if b:
-            # print("new")
-            return self.aux()
-        else:
-            # print("old")
-            print("The polynomial has been troncated.")
-            return self.aux()
+        assert b, "Not enough points to subdivide the interval along the x-axis for the change of basis"
+
+        return self.aux()
     
     def getGrid(self):
         return self.grid

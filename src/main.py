@@ -28,6 +28,7 @@ parser.add_argument('-idct', nargs='?', type=int, const=2, default=0, help="use 
 parser.add_argument('-hide', nargs='?', type=bool, const=True, default=False, help="hide the plot")
 parser.add_argument('-save', nargs='?', type=bool, const=True, default=False, help="save the plot in the output directory")
 parser.add_argument('-der', nargs='?', type=bool, const=True, default=False, help="use the derivative as a subdivision termination criterion")
+parser.add_argument('-dsc', nargs='?', type=bool, const=True, default=False, help="use Descartes' rule for the subdivision")
 
 args = parser.parse_args()
 
@@ -36,6 +37,7 @@ xs = np.linspace(args.x[0], args.x[1], n)
 ys = np.linspace(args.y[0], args.y[1], n)
 use_clen = args.clen
 use_idct = args.idct
+use_dsc = args.dsc
 
 # Read the polynomial
 
@@ -48,13 +50,15 @@ with open(args.poly) as inf:
         print("Empty file.")
         exit()
 
+assert deg_x <= n or deg_y <= n, "Not enough points with respect to the degree of the polynomial"
+
 poly = np.loadtxt(args.poly, dtype=int)
 
 # Core of the program
 
 sub = Subdivision(xs, ys, deg_x, deg_y, args.poly, args.der)
 
-intervals = sub.isolateIntervals(poly, n, use_clen + use_idct)
+intervals = sub.isolateIntervals(poly, n, use_clen + use_idct, use_dsc)
 
 # sub.drawSubdivisions()
 # sub.printComplexity()

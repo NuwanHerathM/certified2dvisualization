@@ -15,6 +15,7 @@ from idcthandler import IDCTHandler
 from complexity import Complexity
 from branch import Branch
 
+from scipy import optimize
 
 # Logger
 
@@ -68,7 +69,7 @@ class Subdivision:
         self.cmplxty.endSubdivision()
         return res
 
-    def isolateIntervals(self, poly, n, switch):
+    def isolateIntervals(self, poly, n, switch, use_dsc):
         partial_poly = np.empty((n, self.deg_y + 1), dtype=object)
         rad = (self.ys[-1] - self.ys[0]) / (2 * (n - 1))
         rad = 0
@@ -117,21 +118,42 @@ class Subdivision:
                 deg_ch, deg_conv = map(sum,zip((deg_ch, deg_conv),idct.getDegrees()))
         intervals = np.empty(n, dtype="object")
         for i in range(n):
-            with Timer("subdivision", logger=None):
-                intervals[i] = self.__subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
-            l = partial_poly[i].tolist()
-            with open('tmp_poly', 'w') as f:
-                f.write('{:d}\n'.format(len(l) - 1))
-                for v in l:
-                    f.write('{:d}\n'.format(int(round(v))))
-            command = 'test_descartes --subdivision 1 --newton 0 --truncate 0 --sqrfree 0 --intprog 0 tmp_poly'
-            process = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-            outs, errs = process.communicate()
-            intvl_nb = int(errs.splitlines()[2].split('=')[1])
-            # print(f"{intvl_nb}\t{self.cmplxty.subTreeSize()}")
-            self.cmplxty.descartes(intvl_nb)
-            # self.cmplxty.leaves()
-        
+            if (not use_dsc):
+                with Timer("subdivision", logger=None):
+                    intervals[i] = self.__subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
+            else:
+                with Timer("subdivision", logger=None):
+                    p_i = np.polynomial.Polynomial(partial_poly[i])
+                    l = partial_poly[i].tolist()
+                    with Timer("writing", logger=None):
+                        with open('tmp_poly', 'w') as f:
+                            f.write('{:d}\n'.format(len(l) - 1))
+                            for v in l:
+                                f.write('{:d}\n'.format(int(round(v))))
+                    with Timer("dsc", logger=None):
+                        adsc = 'test_descartes --subdivision 1 --newton 0 --truncate 0 --sqrfree 0 --intprog 0 tmp_poly'
+                        anewdsc = 'test_descartes tmp_poly'
+                        command = anewdsc
+                        process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        outs, errs = process.communicate()
+                    dsc_out = [[int(y.split('/')[0]) * 2**(-int(y.split('^')[1])) for y in x.split(',')] for x in outs.splitlines()[0][2:-2].split('],[')]
+                    indices = []
+                    with Timer("brent", logger=None):
+                        for intvl in dsc_out:
+                            a = intvl[0]
+                            b = intvl[1]
+                            if (p_i(a) * p_i(b) < 0):
+                                y0 = optimize.brentq(p_i, a, b)
+                                idx = np.searchsorted(self.ys, y0)
+                                if 0 < idx and idx < len(self.ys):
+                                    indices.append([idx -1, idx])
+                        intervals[i] = indices
+                    intvl_nb = int(errs.splitlines()[2].split('=')[1])
+                    self.cmplxty.descartes(intvl_nb)
+        print(Timer.timers)
+        del Timer.timers["writing"]
+        del Timer.timers["dsc"]
+        del Timer.timers["brent"]
         self.cmplxty.log()
         # self.cmplxty.subdivision_analysis()
 
