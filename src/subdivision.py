@@ -7,6 +7,7 @@ import flint as ft
 from math import cos, pi
 
 from codetiming import Timer
+import time
 
 import logging
 
@@ -15,7 +16,9 @@ from idcthandler import IDCTHandler
 from complexity import Complexity
 from branch import Branch
 
-from scipy import optimize
+from scipy import optimize, stats
+
+import warnings
 
 # Logger
 
@@ -37,6 +40,7 @@ class Subdivision:
         self.use_der = use_der
         self.grid = None
         self.cmplxty = Complexity(deg_x, len(xs))
+        self.time_distr = None
 
     # Functions
 
@@ -92,7 +96,6 @@ class Subdivision:
                 with Timer("conversion", logger=None):
                     tmp = np.polynomial.chebyshev.poly2cheb(p)
                 deg_conv += len(np.trim_zeros(tmp, 'b')) - 1
-                # TO DO: sqrt of the degree
                 tmp[np.abs(tmp) < 1e-15] = 0
                 tmp = np.trim_zeros(tmp, 'b')
                 if (len(tmp) == 0):
@@ -117,7 +120,9 @@ class Subdivision:
                 self.grid = idct.getGrid()
                 deg_ch, deg_conv = map(sum,zip((deg_ch, deg_conv),idct.getDegrees()))
         intervals = np.empty(n, dtype="object")
+        distr = np.empty(n, dtype=float)
         for i in range(n):
+            start = time.perf_counter()
             if (not use_dsc):
                 with Timer("subdivision", logger=None):
                     intervals[i] = self.__subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
@@ -136,7 +141,14 @@ class Subdivision:
                         command = anewdsc
                         process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                         outs, errs = process.communicate()
-                    dsc_out = [[int(y.split('/')[0]) * 2**(-int(y.split('^')[1])) for y in x.split(',')] for x in outs.splitlines()[0][2:-2].split('],[')]
+                    if len(outs) > 4:
+                        dsc_out = [[int(y.split('/')[0]) * 2**(-int(y.split('^')[1])) for y in x.split(',')] for x in outs.splitlines()[0][2:-2].split('],[')]
+                    elif outs[:2] == '[]':
+                        dsc_out = []
+                    else:
+                        warnings.warn("A bug in ANewDsc's output has been ignored (no value).")
+                        print(outs)
+                        dsc_out = [] 
                     indices = []
                     with Timer("brent", logger=None):
                         for intvl in dsc_out:
@@ -148,12 +160,18 @@ class Subdivision:
                                 if 0 < idx and idx < len(self.ys):
                                     indices.append([idx -1, idx])
                         intervals[i] = indices
-                    intvl_nb = int(errs.splitlines()[2].split('=')[1])
+                    if len(errs.splitlines()) > 3:
+                        intvl_nb = int(errs.splitlines()[2].split('=')[1]) 
+                    else:
+                        warnings.warn("A bug in ANewDsc's error messages has been ignored (no statistic).")
+                        intvl_nb = 0
                     self.cmplxty.descartes(intvl_nb)
+            distr[i] = round(time.perf_counter() - start,4)
+        self.time_distr = (distr, stats.relfreq(distr, numbins=20))
         print(Timer.timers)
-        del Timer.timers["writing"]
-        del Timer.timers["dsc"]
-        del Timer.timers["brent"]
+        Timer.timers.pop("writing", None)
+        Timer.timers.pop("dsc", None)
+        Timer.timers.pop("brent", None)
         self.cmplxty.log()
         # self.cmplxty.subdivision_analysis()
 
@@ -184,3 +202,6 @@ class Subdivision:
     
     def printComplexity(self):
         print(self.cmplxty)
+    
+    def getSubdivisionTimeDistribution(self):
+        return self.time_distr

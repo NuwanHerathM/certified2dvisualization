@@ -5,6 +5,7 @@ import sys
 import math
 from math import cos, pi
 import numpy as np
+import statistics
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from subdivision import Subdivision
@@ -100,10 +101,11 @@ def merge(intervals):
     return res
 
 if (not args.hide or args.save):
+    # Drawing of the polynomial
     fig1 = plt.figure()
     base = os.path.basename(args.poly)
     method = "clenshaw" * use_clen + "idct" * (use_idct - 1) + "classic" * (1 - max(use_clen, use_idct - 1))
-    fig1.suptitle(f"{os.path.splitext(base)[0]}: n={n - 1}, " + method)
+    fig1.canvas.set_window_title(f"{os.path.splitext(base)[0]}: n={n - 1}, " + method)
 
     ax1 = fig1.add_subplot(111, aspect='equal')
 
@@ -120,6 +122,24 @@ if (not args.hide or args.save):
 
     plt.xlim(xs[0],xs[-1])
     plt.ylim(ys[0],ys[-1])
+
+    # Frequency analysis
+    (distr, res) = sub.getSubdivisionTimeDistribution()
+    x = np.linspace(distr.min(), distr.max(), res.frequency.size)
+    fig2 = plt.figure(figsize=(5, 4))
+
+    ax2 = fig2.add_subplot(1, 1, 1)
+
+    ax2.bar(x, res.frequency, width=res.binsize)
+
+    fig2.canvas.set_window_title('Relative frequency histogram')
+    vert_mean = plt.axvline(x=distr.mean(), figure=fig2, color='k')
+    vert_median = plt.axvline(x=statistics.median(distr), figure=fig2, color='r')
+    plt.legend([vert_mean, vert_median], ['mean', 'median'])
+
+    ax2.set_xlim([x.min(), x.max()])
+    plt.xlabel('time (s)')
+
     if (args.poly == default_file):
         # draw a circle if the default file is used
         circle = plt.Circle((0, 0), 2, color='r', fill=False)
