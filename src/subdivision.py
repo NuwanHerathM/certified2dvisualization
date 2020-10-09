@@ -159,6 +159,9 @@ class Subdivision:
                                 idx = np.searchsorted(self.ys, y0)
                                 if 0 < idx and idx < len(self.ys):
                                     indices.append([idx -1, idx])
+                            else:
+                                print("solution lost")
+                                indices.append([0, 1])
                         intervals[i] = indices
                     if len(errs.splitlines()) > 3:
                         intvl_nb = int(errs.splitlines()[2].split('=')[1]) 
