@@ -8,6 +8,7 @@ import numpy as np
 import statistics
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib import collections as mc
 from subdivision import Subdivision
 
 from codetiming import Timer
@@ -44,14 +45,15 @@ use_dsc = args.dsc
 
 with open(args.poly) as inf:
     lines = inf.readlines()
-    deg_y = len(lines) - 1
-    if (deg_y > -1):
-        deg_x = len(lines[0].split(" ")) - 1
+    deg_x = len(lines) - 1
+    if (deg_x > -1):
+        deg_y = len(lines[0].split(" ")) - 1
     else:
         print("Empty file.")
         exit()
 
-assert deg_x <= n or deg_y <= n, "Not enough points with respect to the degree of the polynomial"
+if use_idct:
+    assert deg_x <= n or deg_y <= n, "Not enough points with respect to the degree of the polynomial"
 
 poly = np.loadtxt(args.poly, dtype=int)
 
@@ -104,22 +106,26 @@ if (not args.hide or args.save):
     # Drawing of the polynomial
     fig1 = plt.figure()
     base = os.path.basename(args.poly)
-    method = "clenshaw" * use_clen + "idct" * (use_idct - 1) + "classic" * (1 - max(use_clen, use_idct - 1))
-    fig1.canvas.set_window_title(f"{os.path.splitext(base)[0]}: n={n - 1}, " + method)
+    eval_method = "clenshaw" * use_clen + "idct" * (use_idct - 1) + "horner" * (1 - max(use_clen, use_idct - 1))
+    isol_method = "basic subdivision" * (1 - use_dsc) + "dsc" * use_dsc
+    fig1.canvas.set_window_title(f"{os.path.splitext(base)[0]}: n={n - 1}, " + eval_method + ", " + isol_method)
 
     ax1 = fig1.add_subplot(111, aspect='equal')
 
     alpha = (xs[-1] - xs[0]) / 2
     shift = xs[-1] - alpha
     grid = sub.getGrid()
+    segments = []
     for i in range(n):
         for e in merge(intervals[i]):
             if (use_idct):
                 x = grid[i]
-                plt.plot([x, x], [ys[e[0]], ys[e[1]]], '-k')
+                segments.append([(x, ys[e[0]]), (x, ys[e[1]])])
             else:
-                plt.plot([xs[i], xs[i]], [ys[e[0]], ys[e[1]]], '-k')
+                segments.append([(xs[i], ys[e[0]]), (xs[i], ys[e[1]])])
 
+    lc = mc.LineCollection(segments, colors=[(0, 0, 0, 1)])
+    ax1.add_collection(lc)
     plt.xlim(xs[0],xs[-1])
     plt.ylim(ys[0],ys[-1])
 

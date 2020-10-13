@@ -62,8 +62,11 @@ class Subdivision:
             if 0 in a:
                 new_node = self.cmplxty.posIntEval(branch, node)
                 if (up - low == 1 or (self.use_der and 0 not in p_der(ball))):
-                    if self.use_der and p(min) * p(max) > 0:
-                        return []
+                    if self.use_der:
+                        if p(min) * p(max) <= 0:
+                            y0 = optimize.brentq(p, min, max)
+                            idx = np.searchsorted(val[low:up+1], y0) + low
+                            return [(idx -1, idx)]
                     return [(low, up)]
                 return aux(low, mid, Branch.LEFT, new_node) + aux(mid, up, Branch.RIGHT, new_node)
             else:
@@ -87,7 +90,7 @@ class Subdivision:
         deg_q = 0
         deg_tmp = 0
         for j in range(self.deg_y + 1):
-            p = np.trim_zeros(poly[j], 'b')
+            p = np.trim_zeros(poly[:,j], 'b')
             if (len(p) == 0):
                 p = [0]
             deg_can += len(p) - 1
@@ -154,14 +157,19 @@ class Subdivision:
                         for intvl in dsc_out:
                             a = intvl[0]
                             b = intvl[1]
-                            if (p_i(a) * p_i(b) < 0):
+                            if (p_i(a) * p_i(b) <= 0):
                                 y0 = optimize.brentq(p_i, a, b)
                                 idx = np.searchsorted(self.ys, y0)
-                                if 0 < idx and idx < len(self.ys):
+                                if 0 < idx and idx < n:
                                     indices.append([idx -1, idx])
                             else:
-                                print("solution lost")
-                                indices.append([0, 1])
+                                idx_a = np.searchsorted(self.ys, a)
+                                idx_b = np.searchsorted(self.ys, b)
+                                if idx_b <=0 or n <= idx_a:
+                                    continue
+                                idx_a = max(idx_a, 0)
+                                idx_b = min (n - 1, idx_b)
+                                indices.append([idx_a, idx_b])
                         intervals[i] = indices
                     if len(errs.splitlines()) > 3:
                         intvl_nb = int(errs.splitlines()[2].split('=')[1]) 
