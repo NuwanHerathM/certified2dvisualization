@@ -104,7 +104,7 @@ def merge(intervals):
 
 if (not args.hide or args.save):
     # Drawing of the polynomial
-    fig1 = plt.figure()
+    fig1 = plt.figure(dpi=200)
     base = os.path.basename(args.poly)
     eval_method = "clenshaw" * use_clen + "idct" * (use_idct - 1) + "horner" * (1 - max(use_clen, use_idct - 1))
     isol_method = "basic subdivision" * (1 - use_dsc) + "dsc" * use_dsc
