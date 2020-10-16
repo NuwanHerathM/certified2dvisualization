@@ -8,6 +8,20 @@ from scipy.special import comb
 class IDCTHandler:
 
     def __init__(self, coef, n, lower, upper):
+        """
+            Constructor.
+
+            Parameter
+            ---------
+            coef : array
+                List of the polynomial coefficients
+            n : int
+                Number of points in the output
+            lower : float
+                Lower bound of the output range
+            upper : float
+                Upper bound of the output range
+        """
         self.coef = coef
         self.d = len(coef)
         self.n = n
@@ -24,7 +38,7 @@ class IDCTHandler:
         u_z = []
         if (self.minus != self.plus):
             i_min = ceil(self.N_z / pi * acos(self.plus) - 0.5)
-            i_max = ceil(self.N_z / pi * acos(self.minus) - 0.5)
+            i_max = floor(self.N_z / pi * acos(self.minus) - 0.5)
             cos_z = [cos((2 * i + 1) * pi / (2 * self.N_z)) for i in range(i_min, i_max + 1)]
             with Timer("conversion", logger=None):
                 q_z = np.polynomial.chebyshev.poly2cheb(self.coef)
@@ -114,7 +128,6 @@ class IDCTHandler:
                 self.N_p += 1
             
             b = b and (self.N_p >= self.d)
-        
         assert b, "Not enough points to subdivide the interval along the x-axis for the change of basis"
 
         return self.aux()

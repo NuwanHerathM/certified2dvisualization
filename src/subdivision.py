@@ -163,13 +163,18 @@ class Subdivision:
                                 if 0 < idx and idx < n:
                                     indices.append([idx -1, idx])
                             else:
-                                idx_a = np.searchsorted(self.ys, a)
+                                idx_a = np.searchsorted(self.ys, a, side='right') -1
                                 idx_b = np.searchsorted(self.ys, b)
                                 if idx_b <=0 or n <= idx_a:
                                     continue
                                 idx_a = max(idx_a, 0)
                                 idx_b = min (n - 1, idx_b)
                                 indices.append([idx_a, idx_b])
+                        if True in (e[1] - e[0] != 1 for e in indices):
+                            print(indices)
+                            print([[self.ys[y] for y in x] for x in indices])
+                            print(outs)
+                            # print(p_i)
                         intervals[i] = indices
                     if len(errs.splitlines()) > 3:
                         intvl_nb = int(errs.splitlines()[2].split('=')[1]) 
