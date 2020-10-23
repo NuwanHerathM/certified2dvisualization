@@ -20,6 +20,8 @@ from scipy import optimize, stats
 
 import warnings
 
+import clenshaw as cs
+
 # Logger
 
 logger = logging.getLogger(__name__)
@@ -76,7 +78,7 @@ class Subdivision:
         self.cmplxty.endSubdivision()
         return res
 
-    def isolateIntervals(self, poly, n, switch, use_dsc):
+    def isolateIntervals(self, poly, n, use_clen, use_idct, use_dsc, use_gm):
         partial_poly = np.empty((n, self.deg_y + 1), dtype=object)
         rad = (self.ys[-1] - self.ys[0]) / (2 * (n - 1))
         rad = 0
@@ -94,7 +96,7 @@ class Subdivision:
             if (len(p) == 0):
                 p = [0]
             deg_can += len(p) - 1
-            if (switch == 1):
+            if use_clen:
                 # if we want to use Clenshaw with the Chebyshev basis
                 with Timer("conversion", logger=None):
                     tmp = np.polynomial.chebyshev.poly2cheb(p)
@@ -108,7 +110,7 @@ class Subdivision:
                     with Timer("evaluation", logger=None):
                         partial_poly[i,j] = np.polynomial.chebyshev.chebval(self.xs[i], tmp)
                     self.cmplxty.incrClenshaw()
-            elif (switch == 0):
+            elif not use_idct:
                 # if we do not use the Chebyshev basis
                 tmp = p
                 for i in range(n):
@@ -126,62 +128,92 @@ class Subdivision:
         distr = np.empty(n, dtype=float)
         for i in range(n):
             start = time.perf_counter()
-            if (not use_dsc):
+            if (not use_dsc and not use_gm):
                 with Timer("subdivision", logger=None):
                     intervals[i] = self.__subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
-            else:
+            elif use_dsc:
                 with Timer("subdivision", logger=None):
                     p_i = np.polynomial.Polynomial(partial_poly[i])
                     l = partial_poly[i].tolist()
-                    with Timer("writing", logger=None):
-                        with open('tmp_poly', 'w') as f:
-                            f.write('{:d}\n'.format(len(l) - 1))
-                            for v in l:
-                                f.write('{:d}\n'.format(int(round(v))))
-                    with Timer("dsc", logger=None):
-                        adsc = 'test_descartes --subdivision 1 --newton 0 --truncate 0 --sqrfree 0 --intprog 0 tmp_poly'
-                        anewdsc = 'test_descartes tmp_poly'
-                        command = anewdsc
-                        process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                        outs, errs = process.communicate()
+                    # with Timer("writing", logger=None):
+                    with open('tmp_poly', 'w') as f:
+                        f.write('{:d}\n'.format(len(l) - 1))
+                        for v in l:
+                            f.write('{:d}\n'.format(int(round(v))))
+                    # with Timer("dsc", logger=None):
+                    adsc = 'test_descartes --subdivision 1 --newton 0 --truncate 0 --sqrfree 0 --intprog 0 tmp_poly'
+                    anewdsc = 'test_descartes tmp_poly'
+                    command = anewdsc
+                    process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                    outs, errs = process.communicate()
                     if len(outs) > 4:
                         dsc_out = [[int(y.split('/')[0]) * 2**(-int(y.split('^')[1])) for y in x.split(',')] for x in outs.splitlines()[0][2:-2].split('],[')]
                     elif outs[:2] == '[]':
                         dsc_out = []
                     else:
-                        warnings.warn("A bug in ANewDsc's output has been ignored (no value).")
+                        warnings.warn("The polynomial is probably not square-free (no output for ANewDsc).")
                         print(outs)
                         dsc_out = [] 
                     indices = []
-                    with Timer("brent", logger=None):
-                        for intvl in dsc_out:
-                            a = intvl[0]
-                            b = intvl[1]
-                            if (p_i(a) * p_i(b) <= 0):
-                                y0 = optimize.brentq(p_i, a, b)
-                                idx = np.searchsorted(self.ys, y0)
-                                if 0 < idx and idx < n:
-                                    indices.append([idx -1, idx])
-                            else:
-                                idx_a = np.searchsorted(self.ys, a, side='right') -1
-                                idx_b = np.searchsorted(self.ys, b)
-                                if idx_b <=0 or n <= idx_a:
-                                    continue
-                                idx_a = max(idx_a, 0)
-                                idx_b = min (n - 1, idx_b)
-                                indices.append([idx_a, idx_b])
-                        if True in (e[1] - e[0] != 1 for e in indices):
-                            print(indices)
-                            print([[self.ys[y] for y in x] for x in indices])
-                            print(outs)
-                            # print(p_i)
-                        intervals[i] = indices
+                    # with Timer("brent", logger=None):
+                    for intvl in dsc_out:
+                        a = intvl[0]
+                        b = intvl[1]
+                        if (np.sign(p_i(a)) * np.sign(p_i(b)) <= 0):
+                            y0 = optimize.brentq(p_i, a, b)
+                            idx = np.searchsorted(self.ys, y0)
+                            if 0 < idx and idx < n:
+                                indices.append([idx -1, idx])
+                        else:
+                            idx_a = np.searchsorted(self.ys, a, side='right') -1
+                            idx_b = np.searchsorted(self.ys, b)
+                            if idx_b <=0 or n <= idx_a:
+                                continue
+                            idx_a = max(idx_a, 0)
+                            idx_b = min (n - 1, idx_b)
+                            indices.append([idx_a, idx_b])
+                    # if True in (e[1] - e[0] != 1 for e in indices):
+                    #     print(indices)
+                    #     print([[self.ys[y] for y in x] for x in indices])
+                    #     print(outs)
+                    #     # print(p_i)
+                    intervals[i] = indices
                     if len(errs.splitlines()) > 3:
                         intvl_nb = int(errs.splitlines()[2].split('=')[1]) 
                     else:
                         warnings.warn("A bug in ANewDsc's error messages has been ignored (no statistic).")
                         intvl_nb = 0
                     self.cmplxty.descartes(intvl_nb)
+            else:
+                with Timer("subdivision", logger=None):
+                    sols, unks = cs.solve_polynomial_taylor(partial_poly[i], n=10)
+                    if len(sols) == 0:
+                        sols = np.empty((0, 2), int)
+                    if len(unks) == 0:
+                        unks = np.empty((0, 2), int)
+                    cs_out = np.concatenate((sols, unks), 0)
+                    p_i = np.polynomial.Polynomial(partial_poly[i])
+                    # with Timer("brent", logger=None):
+                    indices = []
+                    for intvl in cs_out:
+                        a = intvl[0] - intvl[1]
+                        b = intvl[0] + intvl[1]
+                        if a < self.ys[0] or self.ys[-1] < b:
+                            continue
+                        if (np.sign(p_i(a)) * np.sign(p_i(b)) <= 0):
+                            y0 = optimize.brentq(p_i, a, b)
+                            idx = np.searchsorted(self.ys, y0)
+                            if 0 < idx and idx < n:
+                                indices.append([idx -1, idx])
+                        else:
+                            idx_a = np.searchsorted(self.ys, a, side='right') -1
+                            idx_b = np.searchsorted(self.ys, b)
+                            if idx_b <=0 or n <= idx_a:
+                                continue
+                            idx_a = max(idx_a, 0)
+                            idx_b = min (n - 1, idx_b)
+                            indices.append([idx_a, idx_b])
+                    intervals[i] = indices
             distr[i] = round(time.perf_counter() - start,4)
         self.time_distr = (distr, stats.relfreq(distr, numbins=20))
         print(Timer.timers)
@@ -193,12 +225,12 @@ class Subdivision:
 
         logger.info(self.poly_file)
         logger.info("="*len(self.poly_file))
-        if (switch == 1):
+        if use_clen:
             logger.info('Clenshaw polynomial degree')
             logger.info(f"Before Chebyshev:\t{deg_can / (self.deg_y + 1)}")
             logger.info(f"After conversion:\t{deg_conv / (self.deg_y + 1)}")
             logger.info(f"After Clenshaw:\t{deg_q / (self.deg_y + 1)}")
-        elif (switch == 0):
+        elif not use_idct:
             logger.info('Classical polynomial degree')
             logger.info(f"Actual polynomial:\t{deg_can / (self.deg_y + 1)}")
         else:
