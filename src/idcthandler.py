@@ -2,7 +2,6 @@ import numpy as np
 from math import cos, pi, floor, acos, ceil
 from scipy.fft import idct
 from codetiming import Timer
-import itertools
 from scipy.special import comb
 
 class IDCTHandler:

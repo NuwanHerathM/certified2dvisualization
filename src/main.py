@@ -1,13 +1,9 @@
 import argparse
 import os
-import sys
 
-import math
-from math import cos, pi
 import numpy as np
 import statistics
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 from matplotlib import collections as mc
 from subdivision import Subdivision
 
@@ -15,8 +11,10 @@ from codetiming import Timer
 
 import logging
 
-# Parse the input
+from visu_utils import Verbose
 
+# Parse the input
+np.seterr(all='raise')
 dirname = os.path.dirname(__file__)
 default_file = os.path.join(dirname, '../polys/circle.poly')
 
@@ -25,14 +23,17 @@ parser.add_argument('n', type=int, help="size of the grid (number of subdivision
 parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
 parser.add_argument('-x', nargs=2, type=int, default=[-8,8], help="bounds on the x-axis")
 parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the y-axis")
-parser.add_argument('-clen', nargs='?', type=bool, const=True, default=False, help="use the Chebyshev basis and Clenshaw's scheme")
-parser.add_argument('-idct', nargs='?', type=bool, const=True, default=False, help="use the Chebyshev basis and the IDCT")
-parser.add_argument('-hide', nargs='?', type=bool, const=True, default=False, help="hide the plot")
-parser.add_argument('-freq', nargs='?', type=bool, const=True, default=False, help="show the subdivision time distribution")
-parser.add_argument('-save', nargs='?', type=bool, const=True, default=False, help="save the plot in the output directory")
-parser.add_argument('-der', nargs='?', type=bool, const=True, default=False, help="use the derivative as a subdivision termination criterion")
-parser.add_argument('-dsc', nargs='?', type=bool, const=True, default=False, help="use Descartes' rule for the subdivision")
-parser.add_argument('-gm', nargs='?', type=bool, const=True, default=False, help="use GM's clenshaw for the isolation")
+group_eval = parser.add_mutually_exclusive_group()
+group_eval.add_argument('-clen', help="use the Chebyshev basis and Clenshaw's scheme", action="store_true")
+group_eval.add_argument('-idct', help="use the Chebyshev basis and the IDCT", action="store_true")
+parser.add_argument('-hide', help="hide the plot", action="store_true")
+parser.add_argument('-freq', help="show the subdivision time distribution", action="store_true")
+parser.add_argument('-save', help="save the plot in the output directory")
+parser.add_argument('-der', help="use the derivative as a subdivision termination criterion", action="store_true")
+group_sub = parser.add_mutually_exclusive_group()
+group_sub.add_argument('-dsc', help="use Descartes's rule for the subdivision", action="store_true")
+group_sub.add_argument('-cs', help="use GM's clenshaw for the isolation", action="store_true")
+parser.add_argument('-v', '--verbose', help="turn on the verbosity", action="store_true")
 
 args = parser.parse_args()
 
@@ -42,10 +43,14 @@ ys = np.linspace(args.y[0], args.y[1], n)
 use_clen = args.clen
 use_idct = args.idct
 use_dsc = args.dsc
-use_gm = args.gm
+use_cs = args.cs
+
+# Function for verbosity
+Verbose.classInit(args.verbose)
 
 # Read the polynomial
 
+Verbose.verboseprint("Reading the polynomial file...")
 with open(args.poly) as inf:
     lines = inf.readlines()
     deg_x = len(lines) - 1
@@ -59,18 +64,20 @@ if use_idct:
     assert deg_x <= n or deg_y <= n, "Not enough points with respect to the degree of the polynomial"
 
 poly = np.loadtxt(args.poly, dtype=int)
+# poly = np.random.randint(0,101, (deg_x + 1, deg_y + 1))
 
 # Core of the program
 
 sub = Subdivision(xs, ys, deg_x, deg_y, args.poly, args.der)
 
-intervals = sub.isolateIntervals(poly, n, use_clen, use_idct, use_dsc, use_gm)
+intervals = sub.isolateIntervals(poly, n, use_clen, use_idct, use_dsc, use_cs)
 
 # sub.drawSubdivisions()
 # sub.printComplexity()
 
 # Computation time logging
 
+Verbose.verboseprint("Logging...")
 SORT_ORDER = {"change": 0, "conversion": 1, "evaluation": 2, "subdivision": 3}
 sorted_dict = sorted(Timer.timers.items(), key=lambda x: SORT_ORDER[x[0]])
 
@@ -86,6 +93,7 @@ for key, value in sorted_dict:
 
 # Show isolated intervals
 
+Verbose.verboseprint("Constructing the visualization...")
 def merge(intervals):
     """Return the union of the intervals."""
 
@@ -110,7 +118,7 @@ if (not args.hide or args.save):
     fig1 = plt.figure(dpi=600)
     base = os.path.basename(args.poly)
     eval_method = "clenshaw" * use_clen + "idct" * use_idct + "horner" * (1 - max(use_clen, use_idct))
-    isol_method = "interval" * (1 - max(use_dsc, use_gm)) + "dsc" * use_dsc + "gm" * use_gm
+    isol_method = "interval" * (1 - max(use_dsc, use_cs)) + "dsc" * use_dsc + "gm" * use_cs
     fig1.canvas.set_window_title(f"{os.path.splitext(base)[0]}: n={n - 1}, " + eval_method + ", " + isol_method)
 
     ax1 = fig1.add_subplot(111, aspect='equal')
@@ -119,6 +127,7 @@ if (not args.hide or args.save):
     shift = xs[-1] - alpha
     grid = sub.getGrid()
     segments = []
+    colors = []
     for i in range(n):
         for e in merge(intervals[i]):
             if (use_idct):
@@ -126,8 +135,9 @@ if (not args.hide or args.save):
                 segments.append([(x, ys[e[0]]), (x, ys[e[1]])])
             else:
                 segments.append([(xs[i], ys[e[0]]), (xs[i], ys[e[1]])])
+            colors.append((not e[2], 0, 0, 1))
     
-    lc = mc.LineCollection(segments, colors=[(0, 0, 0, 1)], linewidths=0.1)
+    lc = mc.LineCollection(segments, colors=colors, linewidths=0.1)
     ax1.add_collection(lc)
     plt.xlim(xs[0],xs[-1])
     plt.ylim(ys[0],ys[-1])

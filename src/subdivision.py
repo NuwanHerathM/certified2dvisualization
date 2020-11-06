@@ -4,8 +4,6 @@ import numpy as np
 
 import flint as ft
 
-from math import cos, pi
-
 from codetiming import Timer
 import time
 
@@ -21,6 +19,8 @@ from scipy import optimize, stats
 import warnings
 
 import clenshaw as cs
+
+from visu_utils import Verbose
 
 # Logger
 
@@ -68,8 +68,8 @@ class Subdivision:
                         if p(min) * p(max) <= 0:
                             y0 = optimize.brentq(p, min, max)
                             idx = np.searchsorted(val[low:up+1], y0) + low
-                            return [(idx -1, idx)]
-                    return [(low, up)]
+                            return [(idx -1, idx, True)]
+                    return [(low, up, up - low == 1)]
                 return aux(low, mid, Branch.LEFT, new_node) + aux(mid, up, Branch.RIGHT, new_node)
             else:
                 self.cmplxty.negIntEval(branch, node)
@@ -78,7 +78,7 @@ class Subdivision:
         self.cmplxty.endSubdivision()
         return res
 
-    def isolateIntervals(self, poly, n, use_clen, use_idct, use_dsc, use_gm):
+    def isolateIntervals(self, poly, n, use_clen, use_idct, use_dsc, use_cs):
         partial_poly = np.empty((n, self.deg_y + 1), dtype=object)
         rad = (self.ys[-1] - self.ys[0]) / (2 * (n - 1))
         rad = 0
@@ -91,6 +91,7 @@ class Subdivision:
         deg_ch = 0
         deg_q = 0
         deg_tmp = 0
+        Verbose.verboseprint("Evaluation...")
         for j in range(self.deg_y + 1):
             p = np.trim_zeros(poly[:,j], 'b')
             if (len(p) == 0):
@@ -126,9 +127,10 @@ class Subdivision:
                 deg_ch, deg_conv = map(sum,zip((deg_ch, deg_conv),idct.getDegrees()))
         intervals = np.empty(n, dtype="object")
         distr = np.empty(n, dtype=float)
+        Verbose.verboseprint("Subdivision...")
         for i in range(n):
             start = time.perf_counter()
-            if (not use_dsc and not use_gm):
+            if (not use_dsc and not use_cs):
                 with Timer("subdivision", logger=None):
                     intervals[i] = self.__subdivide(self.ys, 0, n - 1, partial_poly[i].tolist())
             elif use_dsc:
@@ -142,7 +144,7 @@ class Subdivision:
                             f.write('{:d}\n'.format(int(round(v))))
                     # with Timer("dsc", logger=None):
                     adsc = 'test_descartes --subdivision 1 --newton 0 --truncate 0 --sqrfree 0 --intprog 0 tmp_poly'
-                    anewdsc = 'test_descartes tmp_poly'
+                    anewdsc = 'test_descartes --intprog 0 tmp_poly'
                     command = anewdsc
                     process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                     outs, errs = process.communicate()
@@ -163,7 +165,7 @@ class Subdivision:
                             y0 = optimize.brentq(p_i, a, b)
                             idx = np.searchsorted(self.ys, y0)
                             if 0 < idx and idx < n:
-                                indices.append([idx -1, idx])
+                                indices.append((idx -1, idx, True))
                         else:
                             idx_a = np.searchsorted(self.ys, a, side='right') -1
                             idx_b = np.searchsorted(self.ys, b)
@@ -171,10 +173,10 @@ class Subdivision:
                                 continue
                             idx_a = max(idx_a, 0)
                             idx_b = min (n - 1, idx_b)
-                            indices.append([idx_a, idx_b])
+                            indices.append((idx_a, idx_b, False))
                     # if True in (e[1] - e[0] != 1 for e in indices):
                     #     print(indices)
-                    #     print([[self.ys[y] for y in x] for x in indices])
+                    #     print([[self.ys[x[0]], self.ys[x[1]]] for x in indices])
                     #     print(outs)
                     #     # print(p_i)
                     intervals[i] = indices
@@ -204,7 +206,7 @@ class Subdivision:
                             y0 = optimize.brentq(p_i, a, b)
                             idx = np.searchsorted(self.ys, y0)
                             if 0 < idx and idx < n:
-                                indices.append([idx -1, idx])
+                                indices.append((idx -1, idx, True))
                         else:
                             idx_a = np.searchsorted(self.ys, a, side='right') -1
                             idx_b = np.searchsorted(self.ys, b)
@@ -212,7 +214,7 @@ class Subdivision:
                                 continue
                             idx_a = max(idx_a, 0)
                             idx_b = min (n - 1, idx_b)
-                            indices.append([idx_a, idx_b])
+                            indices.append((idx_a, idx_b, False))
                     intervals[i] = indices
             distr[i] = round(time.perf_counter() - start,4)
         self.time_distr = (distr, stats.relfreq(distr, numbins=20))
