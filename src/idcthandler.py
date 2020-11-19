@@ -33,7 +33,7 @@ class IDCTHandler:
 
     def getResult(self, grid):
         r_z = []
-        if (grid.lower != grid.upper):
+        if (grid.lower_x != grid.upper_x):
             with Timer("conversion", logger=None):
                 p_z = np.polynomial.chebyshev.poly2cheb(self.coef)
             with Timer("evaluation", logger=None):
@@ -45,7 +45,7 @@ class IDCTHandler:
             p_inv = np.polynomial.chebyshev.poly2cheb(inv_coef)
 
         r_m = []
-        if (grid.x_min != grid.lower):
+        if (grid.x_min != grid.lower_x):
             cos_m = [cos((2 * i + 1) * pi / (2 * grid.minus['N_x'])) for i in range(grid.minus['i_min_x'], grid.minus['i_max_x'] + 1)]
             with Timer("evaluation", logger=None):
                 p_m = [(grid.minus['N_x'] * x + (p_inv[0] / 2)) for x in idct(p_inv, n=grid.minus['N_x'])][grid.minus['i_min_x']:grid.minus['i_max_x']+1]
@@ -54,7 +54,7 @@ class IDCTHandler:
                 r_m = np.divide(p_m, pow_m)
 
         r_p = []
-        if (grid.upper != grid.x_max):
+        if (grid.upper_x != grid.x_max):
             cos_p = [cos((2 * i + 1) * pi / (2 * grid.plus['N_x'])) for i in range(grid.plus['i_min_x'], grid.plus['i_max_x'] + 1)]
             with Timer("evaluation", logger=None):
                 p_p = [(grid.plus['N_x'] * x + (p_inv[0] / 2)) for x in idct(p_inv, n=grid.plus['N_x'])][grid.plus['i_min_x']:grid.plus['i_max_x']+1]

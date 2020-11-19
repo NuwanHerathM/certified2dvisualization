@@ -79,10 +79,8 @@ sub = Subdivision(grid, deg_x, deg_y, args.poly, args.der)
 
 if not args.idct2d:
     intervals = sub.isolateIntervals(poly, n, use_clen, use_idct, use_dsc, use_cs)
-    grid = sub.getGrid()
 else:
     intervals = sub.isolate2d(poly, n)
-    grid = sub.getGrid()
 # sub.drawSubdivisions()
 # sub.printComplexity()
 

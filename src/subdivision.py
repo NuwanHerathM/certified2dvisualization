@@ -226,8 +226,9 @@ class Subdivision:
 
     def isolate2d(self, poly, n):
         Verbose.verboseprint("Evaluation...")
-        idct = IDCTNHandler()
-        eval = idct.idct2d(poly, (n,n))
+        idct = IDCTNHandler(poly, self.grid)
+        # eval = idct.idct2d(poly, (n,n))
+        eval = idct.idct2d_improved()
         intervals = np.empty(n, dtype="object")
         for i in range(n):
             l = []
@@ -239,9 +240,6 @@ class Subdivision:
         self.grid.xs = nodes
         self.grid.ys = nodes
         return intervals
-
-    def getGrid(self):
-        return self.grid
 
     def drawSubdivisions(self):
         self.cmplxty.draw()

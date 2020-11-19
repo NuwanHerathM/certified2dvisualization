@@ -13,8 +13,13 @@ class Grid:
         self.minus = {}
         self.zero = {}
         self.plus = {}
-        self.lower = None
-        self.upper = None
+        self.lower_x = None
+        self.lower_y = None
+        self.upper_x = None
+        self.upper_y = None
+
+    def __str__(self):
+        return f"{self.minus}\n{self.zero}\n{self.plus}\n\n{self.xs}\n{self.ys}"
 
     def __divideCoord(self, coord, d):
         """
@@ -35,28 +40,44 @@ class Grid:
             coord_min = self.y_min
             coord_max = self.y_max
 
-        self.lower = max(coord_min, min(-1, coord_max))
-        self.upper = min(max(coord_min, 1), coord_max)
+        lower = max(coord_min, min(-1, coord_max))
+        upper = min(max(coord_min, 1), coord_max)
 
-        n_m = round((self.lower - coord_min) / (coord_max - coord_min) * self.n)
-        n_p = round((coord_max - self.upper) / (coord_max - coord_min) * self.n)
+        if coord == 'x':
+            self.lower_x = lower
+            self.upper_x = upper
+        if coord == 'y':
+            self.lower_y = lower
+            self.upper_y = upper
+
+        n_m = round((lower - coord_min) / (coord_max - coord_min) * self.n)
+        n_p = round((coord_max - upper) / (coord_max - coord_min) * self.n)
         n_z = self.n - n_m - n_p
+
+        if coord == 'x':
+            self.minus['n_x'] = n_m
+            self.zero['n_x'] = n_z
+            self.plus['n_x'] = n_p
+        if coord == 'y':
+            self.minus['n_y'] = n_m
+            self.zero['n_y'] = n_z
+            self.plus['n_y'] = n_p
 
         b = True
 
-        if (self.lower != self.upper):
-            N_min = round((n_z - 1) * pi / (acos(self.lower) - acos(self.upper)))
-            N_max = round((n_z - 1 + 2) * pi / (acos(self.lower) - acos(self.upper)))
+        if (lower != upper):
+            N_min = round((n_z - 1) * pi / (acos(lower) - acos(upper)))
+            N_max = round((n_z - 1 + 2) * pi / (acos(lower) - acos(upper)))
 
             self.zero['N_' + coord] = int(N_min)
             while (self.zero['N_' + coord] <= N_max):
-                if (floor(self.zero['N_' + coord] / pi * acos(self.lower) - 0.5) - ceil(self.zero['N_' + coord] / pi * acos(self.upper) - 0.5) == n_z - 1):
+                if (floor(self.zero['N_' + coord] / pi * acos(lower) - 0.5) - ceil(self.zero['N_' + coord] / pi * acos(upper) - 0.5) == n_z - 1):
                     break
                 self.zero['N_' + coord] += 1
 
             b = b and (self.zero['N_' + coord] >= d)
 
-        if (coord_min != self.lower):
+        if (coord_min != lower):
             N_min = round((n_m - 0.5) * pi / (pi - acos(1 / coord_min)))
             N_max = round((n_m + 0.5) * pi / (pi - acos(1 / coord_min)))
 
@@ -68,7 +89,7 @@ class Grid:
 
             b = b and (self.minus['N_' + coord] >= d)
 
-        if (self.upper != coord_max):
+        if (upper != coord_max):
             N_min = round((n_p - 0.5) * pi / acos(1 / coord_max))
             N_max = round((n_p + 0.5) * pi / acos(1 / coord_max))
 
@@ -93,16 +114,27 @@ class Grid:
         """
         self.__divideCoord(coord, d)
 
+        if coord == 'x':
+            lower = self.lower_x
+            upper = self.upper_x
+            minimum = self.x_min
+            maximum = self.x_max
+        if coord == 'y':
+            lower = self.lower_y
+            upper = self.upper_y
+            minimum = self.y_min
+            maximum = self.y_max
+
         cos_z = []
-        if (self.lower != self.upper):
-            self.zero['i_min_' + coord] = ceil(self.zero['N_' + coord] / pi * acos(self.upper) - 0.5)
-            self.zero['i_max_' + coord] = floor(self.zero['N_' + coord] / pi * acos(self.lower) - 0.5)
+        if (lower != upper):
+            self.zero['i_min_' + coord] = ceil(self.zero['N_' + coord] / pi * acos(upper) - 0.5)
+            self.zero['i_max_' + coord] = floor(self.zero['N_' + coord] / pi * acos(lower) - 0.5)
             cos_z = [cos((2 * i + 1) * pi / (2 * self.zero['N_' + coord])) for i in range(self.zero['i_min_' + coord], self.zero['i_max_' + coord] + 1)]
 
         inv_cos_m = []
         t_m = []
-        if (self.x_min != self.lower):
-            self.minus['i_min_' + coord] = ceil(self.minus['N_' + coord] / pi * acos(1 / self.x_min) - 0.5)
+        if (minimum != lower):
+            self.minus['i_min_' + coord] = ceil(self.minus['N_' + coord] / pi * acos(1 / minimum) - 0.5)
             self.minus['i_max_' + coord] = self.minus['N_' + coord] - 1
             cos_m = [cos((2 * i + 1) * pi / (2 * self.minus['N_' + coord])) for i in range(self.minus['i_min_' + coord], self.minus['i_max_' + coord] + 1)]
             inv_cos_m = list(map(lambda x: 1 / x, cos_m))
@@ -110,9 +142,9 @@ class Grid:
         
         inv_cos_p = []
         t_p = []
-        if (self.upper != self.x_max):
+        if (upper != maximum):
             self.plus['i_min_' + coord] = 0
-            self.plus['i_max_' + coord] = floor(self.plus['N_' + coord] / pi * acos(1 / self.x_max) - 0.5)
+            self.plus['i_max_' + coord] = floor(self.plus['N_' + coord] / pi * acos(1 / maximum) - 0.5)
             cos_p = [cos((2 * i + 1) * pi / (2 * self.plus['N_' + coord])) for i in range(self.plus['i_min_' + coord], self.plus['i_max_' + coord] + 1)]
             inv_cos_p = list(map(lambda x: 1 / x, cos_p))
             inv_cos_p.reverse()
