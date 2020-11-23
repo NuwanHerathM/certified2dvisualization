@@ -10,8 +10,8 @@ class IDCTHandler:
         """
             Constructor.
 
-            Parameter
-            ---------
+            Parameters
+            ----------
             coef : array
                 List of the polynomial coefficients
             n : int
