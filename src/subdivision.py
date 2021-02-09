@@ -81,8 +81,6 @@ class Subdivision:
 
     def isolateIntervals(self, poly, n, use_clen, use_idct, use_dsc, use_cs):
         partial_poly = np.empty((n, self.deg_y + 1), dtype=object)
-        a = self.grid.x_min
-        b = self.grid.x_max
         Verbose.verboseprint("Evaluation...")
         for j in range(self.deg_y + 1):
             p = np.trim_zeros(poly[:,j], 'b')
@@ -130,7 +128,6 @@ class Subdivision:
                         for v in l:
                             f.write('{:d}\n'.format(int(round(v))))
                     # with Timer("dsc", logger=None):
-                    adsc = 'test_descartes --subdivision 1 --newton 0 --truncate 0 --sqrfree 0 --intprog 0 tmp_poly'
                     anewdsc = 'test_descartes --intprog 0 tmp_poly'
                     command = anewdsc
                     process = subprocess.Popen(command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

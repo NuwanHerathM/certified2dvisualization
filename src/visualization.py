@@ -1,7 +1,8 @@
 import os
 import matplotlib.pyplot as plt
 from matplotlib import collections as mc
-
+import statistics
+import numpy as np
 
 class Visualization:
 
@@ -26,7 +27,7 @@ class Visualization:
         return res
 
     @staticmethod
-    def show(intervals, poly, default_file,  use_clen, use_idct, use_dsc, use_cs, hide, save, freq, n, grid, idct2d):
+    def show(intervals, poly, default_file, use_clen, use_idct, use_dsc, use_cs, hide, save, freq, time_distibution, n, grid, idct2d):
         if (not hide or save):
             # Drawing of the polynomial
             fig1 = plt.figure(dpi=600)
@@ -36,9 +37,8 @@ class Visualization:
             fig1.canvas.set_window_title(f"{os.path.splitext(base)[0]}: n={n - 1}, " + eval_method + ", " + isol_method)
 
             ax1 = fig1.add_subplot(111, aspect='equal')
+            ax1.tick_params(axis='both', which='minor', labelsize=10)
 
-            alpha = (grid.x_max - grid.x_min) / 2
-            shift = grid.x_max - alpha
             segments = []
             colors = []
             for i in range(n):
@@ -60,9 +60,10 @@ class Visualization:
                 filename = os.path.splitext(os.path.basename(poly))[0]
                 plt.savefig(f"../output/{filename}_{n-1}_{eval_method}_{isol_method}.png", bbox_inches='tight')
                 plt.savefig(f"../output/{filename}_{n-1}_{eval_method}_{isol_method}.pdf", bbox_inches='tight', dpi=1200)
+            
             # Frequency analysis
             if freq:
-                (distr, res) = sub.getSubdivisionTimeDistribution()
+                (distr, res) = time_distibution
                 x = np.linspace(distr.min(), distr.max(), res.frequency.size)
                 fig2 = plt.figure(figsize=(5, 4))
 

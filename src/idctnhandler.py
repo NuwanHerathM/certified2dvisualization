@@ -1,3 +1,4 @@
+from grid import Grid
 from locale import NOEXPR
 import numpy as np
 from scipy.fftpack import idctn, idct
@@ -158,8 +159,9 @@ if __name__ == "__main__":
 
     poly = np.random.randn(d, d)
     # print(poly)
+    grid = Grid(n, -1, 1, -1, 1)
 
-    id2t = IDCTNHandler()
+    id2t = IDCTNHandler(poly, grid)
     out = id2t.idct2d(poly, (n,n+1))
 
     nodes = [cos((2 * i + 1) * pi / (2 * n)) for i in range(n)]
@@ -172,8 +174,8 @@ if __name__ == "__main__":
             if not isclose(out[i, j], eval[i, j]):
                 print("oups")
                 pass
+    # On vient de vérifier que IDCTNHandler.idct2d() est équivalent à np.polynomial.polynomial.polygrid2d()
 
-    
     poly = np.array([[7,1,0],[-6,5,0],[0,0,8]])
     n = 5
     m = 4

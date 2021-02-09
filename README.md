@@ -43,4 +43,3 @@ For additional information use:
 ```
 python3 main.py --help
 ```
-

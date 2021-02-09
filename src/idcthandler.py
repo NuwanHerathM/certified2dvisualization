@@ -24,12 +24,6 @@ class IDCTHandler:
         self.coef = coef
         self.d = len(coef)
         self.n = n
-        # self.lower = lower
-        # self.upper = upper
-        # self.c = (lower + upper) / 2
-        # self.alpha = (upper - lower) / 2
-        # self.deg_ch = 0
-        # self.deg_conv = 0
 
     def getResult(self, grid):
         r_z = []

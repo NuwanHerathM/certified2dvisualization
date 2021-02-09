@@ -63,6 +63,9 @@ with open(args.poly) as inf:
 if use_idct or use_idct2d:
     assert deg_x <= n or deg_y <= n, "Not enough points with respect to the degree of the polynomial"
 
+if use_idct2d:
+    assert args.x==[-1,1] and args.y==[-1,1], "The 2D IDCT works only on [-1,1]*[-1,1] for now..."
+
 grid = Grid(n, args.x[0], args.x[1], args.y[0], args.y[1])
 if use_idct:
     grid.computeXsYsForIDCT(deg_x, 'nodes', 'linear')
@@ -84,7 +87,6 @@ if not args.idct2d:
     intervals = sub.isolateIntervals(poly, n, use_clen, use_idct, use_dsc, use_cs)
 else:
     intervals = sub.isolate2d(poly, n)
-# sub.drawSubdivisions()
 # sub.printComplexity()
 
 # Computation time logging
@@ -106,4 +108,4 @@ for key, value in sorted_dict:
 # Show isolated intervals
 
 Verbose.verboseprint("Constructing the visualization...")
-Visualization.show(intervals,args.poly, default_file, use_clen, use_idct, use_dsc, use_cs, args.hide, args.save, args.freq, n, grid, args.idct2d)
+Visualization.show(intervals,args.poly, default_file, use_clen, use_idct, use_dsc, use_cs, args.hide, args.save, args.freq, sub.getSubdivisionTimeDistribution(), n, grid, args.idct2d)
