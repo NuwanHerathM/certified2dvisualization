@@ -18,6 +18,8 @@ Add the directory in which `test_descartes` is to your PATH, if it is not alread
 
 ## Running the program
 
+### Original program
+
 Using the default polynomial (it displays the target curve in red):
 
 ```
@@ -34,6 +36,20 @@ Using another polynomial:
 
 ```
 python3 main.py 512 -poly ../polys/random.poly
+```
+
+### Program with Taylor approximation
+
+Using the default polynomial (it displays the target curve in red):
+
+```
+python3 taylor.py 64
+```
+
+Using another polynomial:
+
+```
+python3 taylor.py 512 -poly ../polys/random.poly
 ```
 
 ## Help
