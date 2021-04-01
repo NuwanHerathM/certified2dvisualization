@@ -5,6 +5,8 @@ from math import cos, pi, factorial, isclose
 import scipy.fftpack as fp
 from utils_taylor import vanishes
 import flint as ft
+import matplotlib.pyplot as plt
+from matplotlib import collections as mc
 
 # Parse the input
 
@@ -47,28 +49,41 @@ for d in range(deg_y+1):
     _p = np.polynomial.chebyshev.poly2cheb(poly[:, d])
     p[:, d] = corrected_idct(_p, n)
 
-
-# q = np.empty((n,n))
-# for i in range(n):
-#     for j in range(n):
-#         q[i,j] = np.polynomial.polynomial.polyval2d(grid[i], grid[j], poly)
-
 d = len(p[0]) - 1
 p_der = np.zeros((m,n))
 
-l = []
+intervals = np.empty(n, dtype="object")
 for i in range(n):
+    indices = []
     _p = np.polynomial.chebyshev.poly2cheb(p[i])
     a = max(p[i], key=abs)
     for k in range(m):
         tmp = np.polynomial.chebyshev.chebder(_p, k)
         p_der[k,:] = 1/factorial(k) * corrected_idct(tmp, n)
     for j in range(n):
-        # if not isclose(p_der[0, j], q[i,j]):
-        #         print(f"{p_der[0, j]} {q[i, j]}")
-        #         print("oups")
         if vanishes(ft.arb_poly(p_der[:,j].tolist()), a, grid, j, m, d):
-            l.append((i,j))
+            indices.append((i,j))
+    intervals[i] = indices
 
-print(l)
+# Show isolated intervals
+
+fig1 = plt.figure(dpi=600)
+
+ax1 = fig1.add_subplot(111, aspect='equal')
+ax1.tick_params(axis='both', which='minor', labelsize=10)
+
+interval_lut = [(grid[i+1] + grid[i]) / 2 for i in range(n-1)]
+interval_lut.insert(0, 1)
+interval_lut.append(-1)
+segments = []
+for i in range(n):
+    for e in intervals[i]:
+        segments.append([(grid[e[0]], interval_lut[e[1]]), (grid[e[0]], interval_lut[e[1]+1])])
+
+lc = mc.LineCollection(segments, linewidths=0.1)
+ax1.add_collection(lc)
+plt.xlim(-1, 1)
+plt.ylim(-1, 1)
+
+plt.show()
         
