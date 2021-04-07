@@ -1,5 +1,6 @@
 import argparse
 import os
+from sys import base_prefix
 
 import numpy as np
 from math import cos, pi, factorial, isclose
@@ -48,7 +49,7 @@ poly = np.loadtxt(args.poly, dtype=int)
 # if args.elliptic:
 #     poly = np.multiply(poly, comb2D(deg_x + 1, deg_y + 1))
 
-grid = [cos((2 * i + 1) * pi / (2 *n)) for i in range(0, n)]
+grid = np.array([cos((2 * i + 1) * pi / (2 *n)) for i in range(0, n)])
 
 def corrected_idct(poly, n):
     return np.array([(x + poly[0]) / 2 for x in fp.idct(poly, n=n)])
@@ -61,40 +62,47 @@ with Timer("conversion", logger=None):
         p[:, d] = corrected_idct(_p, n)
 
 d = len(p[0]) - 1
-p_der = np.zeros((m,n))
+if d < m:
+    print(f"m={m} is greater than the degree.")
+    m = d -1
+    print(f"Its value has been set to {m}.")
+p_der = np.zeros((m+1,n))
 
-hockeystick = ft.arb(comb(d+1, m+2))
-radii = []
+hockeystick = comb(d+1, m+2)
+radii = np.empty(n)
 with Timer("radii", logger=None):
     for i in range(n):
-        r_left = -ft.arb(grid[i] - grid[i-1]) / 2 if 0 < i else ft.arb(0)
-        r_right = -ft.arb(grid[i+1] - grid[i]) / 2 if i < n - 1 else ft.arb(0)
-        radii.append(ft.arb.max(r_left, r_right))
+        r_left = -(grid[i] - grid[i-1]) / 2 if 0 < i else 0
+        r_right = -(grid[i+1] - grid[i]) / 2 if i < n - 1 else 0
+        radii[i] = max(r_left, r_right)
+with Timer("ogf", logger=None):
+    ogf = 1 / (1 - grid - radii)
+    ogf[0] = hockeystick + 1
+    ogf[-1] = hockeystick + 1
+radii_power = radii**(m+1)
 intervals = np.empty(n, dtype="object")
 for i in range(n):
     indices = []
     with Timer("conversion 2", logger=None):
         _p = np.polynomial.chebyshev.poly2cheb(p[i])
-    a = max(p[i], key=abs)
+    factor = radii_power * max(p[i], key=abs)
     with Timer("approximation", logger=None):
-        for k in range(m):
+        for k in range(m+1):
             tmp = np.polynomial.chebyshev.chebder(_p, k)
             p_der[k,:] = 1/factorial(k) * corrected_idct(tmp, n)
     for j in range(n):
         with Timer("isolation", logger=None):
-            if vanishes(ft.arb_poly(p_der[:,j].tolist()), a, grid[j], m, hockeystick, radii[i]):
+            b = min(ogf[j], hockeystick) * factor[j]
+            if 0 in ft.arb_poly(p_der[:,j].tolist())(ft.arb(0,radii[j])) + ft.arb(0,b):
                 indices.append((i,j))
     intervals[i] = indices
 timers = Timer.timers
 print(f"""radii: {timers['radii']}
+ogf: {timers['ogf']}
 conversion (x): {timers['conversion']}
 conversion (y): {timers['conversion 2']}
 approximation: {timers['approximation']}
-isolation: {timers['isolation']}
-    bound: {timers['bound']}
-        ogf: {timers['ogf']}
-        res: {timers['res']}
-    eval: {timers['eval']}""")
+isolation: {timers['isolation']}""")
 
 # Show isolated intervals
 
