@@ -8,6 +8,7 @@ import scipy.fftpack as fp
 from utils_taylor import vanishes
 import flint as ft
 from scipy.special import comb
+from visu_utils import comb2D, factorial2D, Verbose
 
 import matplotlib.pyplot as plt
 from matplotlib import collections as mc
@@ -24,15 +25,21 @@ parser = argparse.ArgumentParser()
 parser.add_argument('n', type=int, help="size of the grid (number of subdivision intervals)")
 parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
 parser.add_argument('-m', type=int, default=3, help="precision of the approximation")
-# parser.add_argument('-elliptic', help="use elliptic coefficients for the polynomial", action="store_true")
+parser.add_argument('-elliptic', help="use elliptic coefficients for the polynomial", action="store_true")
+parser.add_argument('-flat', help="use flat coefficients for the polynomial", action="store_true")
+parser.add_argument('-v', '--verbose', help="turn on the verbosity", action="store_true")
 
 args = parser.parse_args()
 
 n = args.n + 1 # number of points
 m = args.m
 
+# Set function for verbosity
+Verbose.classInit(args.verbose)
+
 # Read the polynomial
 
+Verbose.verboseprint("Reading the polynomial file...")
 with open(args.poly) as inf:
     lines = inf.readlines()
     deg_x = len(lines) - 1
@@ -46,8 +53,10 @@ poly = np.loadtxt(args.poly, dtype=int)
 
 # Core of the program
 
-# if args.elliptic:
-#     poly = np.multiply(poly, comb2D(deg_x + 1, deg_y + 1))
+if args.elliptic:
+    poly = np.multiply(poly, np.sqrt(comb2D(deg_x + 1, deg_y + 1)))
+if args.flat:
+    poly = np.multiply(poly, 1/np.sqrt(factorial2D(deg_x + 1, deg_y + 1)))
 
 grid = np.array([cos((2 * i + 1) * pi / (2 *n)) for i in range(0, n)])
 
@@ -58,7 +67,7 @@ def corrected_idct(poly, n):
 p = np.empty((n,deg_y+1))
 with Timer("conversion", logger=None):
     for d in range(deg_y+1):
-        _p = np.polynomial.chebyshev.poly2cheb(poly[:, d])
+        _p = np.polynomial.chebyshev.poly2cheb(poly[:, d].flat)
         p[:, d] = corrected_idct(_p, n)
 
 d = len(p[0]) - 1
@@ -81,6 +90,7 @@ with Timer("ogf", logger=None):
     ogf[-1] = hockeystick + 1
 radii_power = radii**(m+1)
 intervals = np.empty(n, dtype="object")
+Verbose.verboseprint("Evaluation...")
 for i in range(n):
     indices = []
     with Timer("conversion 2", logger=None):
@@ -93,6 +103,7 @@ for i in range(n):
     for j in range(n):
         with Timer("isolation", logger=None):
             b = min(ogf[j], hockeystick) * factor[j]
+            # np.dot(p_der[:,j],radii[j]**np.arange(m+1))
             if 0 in ft.arb_poly(p_der[:,j].tolist())(ft.arb(0,radii[j])) + ft.arb(0,b):
                 indices.append((i,j))
     intervals[i] = indices
@@ -106,6 +117,7 @@ isolation: {timers['isolation']}""")
 
 # Show isolated intervals
 
+Verbose.verboseprint("Constructing the visualization...")
 fig1 = plt.figure(dpi=600)
 
 ax1 = fig1.add_subplot(111, aspect='equal')

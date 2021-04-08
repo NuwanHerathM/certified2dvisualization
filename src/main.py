@@ -10,7 +10,7 @@ from codetiming import Timer
 
 import logging
 
-from visu_utils import Verbose, comb2D
+from visu_utils import Verbose, comb2D, factorial2D
 
 # Parse the input
 np.seterr(all='raise')
@@ -80,6 +80,8 @@ poly = np.loadtxt(args.poly, dtype=int)
 
 if args.elliptic:
     poly = np.multiply(poly, comb2D(deg_x + 1, deg_y + 1))
+if args.flat:
+    poly = np.multiply(poly, 1/np.sqrt(factorial2D(deg_x + 1, deg_y + 1)))
 
 sub = Subdivision(grid, deg_x, deg_y, args.poly, args.der)
 
