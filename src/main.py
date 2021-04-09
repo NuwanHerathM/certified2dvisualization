@@ -35,6 +35,7 @@ group_sub.add_argument('-cs', help="use GM's clenshaw for the isolation", action
 parser.add_argument('-v', '--verbose', help="turn on the verbosity", action="store_true")
 parser.add_argument('-idct2d', help="use the 2D IDCT", action="store_true")
 parser.add_argument('-elliptic', help="use elliptic coefficients for the polynomial", action="store_true")
+parser.add_argument('-flat', help="use elliptic coefficients for the polynomial", action="store_true")
 
 args = parser.parse_args()
 
