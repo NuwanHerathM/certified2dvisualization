@@ -15,6 +15,9 @@ from matplotlib import collections as mc
 
 from codetiming import Timer
 
+#import numba # maybe not useful for now...
+import time
+
 # Parse the input
 
 np.seterr(all='raise')
@@ -64,6 +67,28 @@ grid = np.array([cos((2 * i + 1) * pi / (2 *n)) for i in range(0, n)])
 def corrected_idct(poly, n):
     return np.array([(x + poly[0]) / 2 for x in fp.idct(poly, n=n)])
 
+# @numba.jit
+def f(bound, p_der, monomials, n, i):
+    """
+    Vectorialized evaluation
+    """
+    indices = []
+    a_0 = p_der[0,:]
+    q = np.abs(p_der)
+    q[0,:] = 0
+    val = np.einsum('ij,ji->j', q, monomials) # unsupported by Numba
+    bools = np.logical_and(a_0 - val - bound < 0, 0 < a_0 + val + bound)
+    for j in range(n):
+        # b = bound[j]
+        # a_0 = p_der[0,j]
+        # q = np.abs(p_der[:,j])
+        # q[0] = 0
+        # val = np.dot(q[:,j],monomials[j])
+        # if a_0[j] - val - b < 0  and 0 < a_0[j] + val + b:
+        #     indices.append((i,j))
+        if bools[j]:
+            indices.append((i,j))
+    return indices
 
 p = np.empty((n,deg_y+1))
 with Timer("conversion", logger=None):
@@ -85,9 +110,9 @@ with Timer("radii", logger=None):
         r_left = -(grid[i] - grid[i-1]) / 2 if 0 < i else 0
         r_right = -(grid[i+1] - grid[i]) / 2 if i < n - 1 else 0
         radii[i] = max(r_left, r_right)
-# monomials = np.empty((n,m+1))
-# for i in range(n):
-#     monomials[i] = radii[i]**np.arange(m+1)
+monomials = np.empty((n,m+1))
+for i in range(n):
+    monomials[i] = radii[i]**np.arange(m+1)
 with Timer("ogf", logger=None):
     ogf = 1 / (1 - grid - radii)
     ogf[0] = hockeystick + 1
@@ -99,25 +124,29 @@ for i in range(n):
     indices = []
     with Timer("conversion 2", logger=None):
         _p = np.polynomial.chebyshev.poly2cheb(p[i])
+        
     factor = radii_power * max(p[i], key=abs)
+    bound = np.minimum(ogf, hockeystick) * factor
     with Timer("approximation", logger=None):
         for k in range(m+1):
             tmp = np.polynomial.chebyshev.chebder(_p, k)
             p_der[k,:] = 1/factorial(k) * corrected_idct(tmp, n)
     for j in range(n):
         with Timer("isolation", logger=None):
-            b = min(ogf[j], hockeystick) * factor[j]
             # np.dot(p_der[:,j],monomials[j]) # <---------- compute the powers separately
-            if 0 in ft.arb_poly(p_der[:,j].tolist())(ft.arb(0,radii[j])) + ft.arb(0,b):
+            if 0 in ft.arb_poly(p_der[:,j].tolist())(ft.arb(0,radii[j])) + ft.arb(0,bound[j]):
                 indices.append((i,j))
-    intervals[i] = indices
+    with Timer("new isolation", logger=None):
+        intervals[i] = f(bound, p_der, monomials, n, i)
+    # intervals[i] = indices
 timers = Timer.timers
 print(f"""radii: {timers['radii']}
 ogf: {timers['ogf']}
 conversion (x): {timers['conversion']}
 conversion (y): {timers['conversion 2']}
 approximation: {timers['approximation']}
-isolation: {timers['isolation']}""")
+isolation: {timers['isolation']}
+new isolation: {timers['new isolation']}""")
 
 # Show isolated intervals
 

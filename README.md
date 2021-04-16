@@ -9,6 +9,8 @@ This is beginning to become an actual readme...
 - `flint-py`
 - `codetiming`
 - `binarytree`
+Not used currently:
+- `numba` (requires `llvmlite` and thus `llvm-10` or `llvm-9`)
 
 ### Third-party programm
 
