@@ -1,11 +1,10 @@
 import argparse
 import os
-from sys import base_prefix
 
 import numpy as np
-from math import cos, pi, factorial, isclose
+from math import cos, pi, factorial
 import scipy.fftpack as fp
-from utils_taylor import vanishes
+from utils_taylor import polys2cheb_dct, corrected_idct
 import flint as ft
 from scipy.special import comb
 from visu_utils import comb2D, factorial2D, Verbose
@@ -14,9 +13,6 @@ import matplotlib.pyplot as plt
 from matplotlib import collections as mc
 
 from codetiming import Timer
-
-#import numba # maybe not useful for now...
-import time
 
 # Parse the input
 
@@ -53,6 +49,9 @@ with open(args.poly) as inf:
         print("Empty file.")
         exit()
 
+if deg_x != deg_y:
+    print("Partial degrees in x and y seem to be different. It may break the code or not...")
+
 poly = np.loadtxt(args.poly, dtype=int)
 
 # Core of the program
@@ -64,89 +63,67 @@ if args.flat:
 
 grid = np.array([cos((2 * i + 1) * pi / (2 *n)) for i in range(0, n)])
 
-def corrected_idct(poly, n):
-    return np.array([(x + poly[0]) / 2 for x in fp.idct(poly, n=n)])
-
-# @numba.jit
-def f(bound, p_der, monomials, n, i):
-    """
-    Vectorialized evaluation
-    """
-    indices = []
-    a_0 = p_der[0,:]
-    q = np.abs(p_der)
-    q[0,:] = 0
-    val = np.einsum('ij,ji->j', q, monomials) # unsupported by Numba
-    bools = np.logical_and(a_0 - val - bound < 0, 0 < a_0 + val + bound)
-    for j in range(n):
-        # b = bound[j]
-        # a_0 = p_der[0,j]
-        # q = np.abs(p_der[:,j])
-        # q[0] = 0
-        # val = np.dot(q[:,j],monomials[j])
-        # if a_0[j] - val - b < 0  and 0 < a_0[j] + val + b:
-        #     indices.append((i,j))
-        if bools[j]:
-            indices.append((i,j))
-    return indices
-
-p = np.empty((n,deg_y+1))
-with Timer("conversion", logger=None):
-    for d in range(deg_y+1):
-        _p = np.polynomial.chebyshev.poly2cheb(poly[:, d].flat)
-        p[:, d] = corrected_idct(_p, n)
-
-d = len(p[0]) - 1
-if d < m:
+if deg_x < m:
     print(f"m={m} is greater than the degree.")
-    m = d -1
+    m = deg_x -1
     print(f"Its value has been set to {m}.")
 p_der = np.zeros((m+1,n))
 
-hockeystick = comb(d+1, m+2)
+Verbose.verboseprint("Evaluation...")
+
+p = np.empty((n,deg_y+1))
+with Timer("conversion", logger=None):
+    _p = polys2cheb_dct(poly.T)
+    p = corrected_idct(_p, n)
+
 radii = np.empty(n)
 with Timer("radii", logger=None):
     for i in range(n):
         r_left = -(grid[i] - grid[i-1]) / 2 if 0 < i else 0
         r_right = -(grid[i+1] - grid[i]) / 2 if i < n - 1 else 0
         radii[i] = max(r_left, r_right)
-monomials = np.empty((n,m+1))
+monomials = np.empty((n, m+1))
 for i in range(n):
     monomials[i] = radii[i]**np.arange(m+1)
+
+hockeystick = comb(deg_x+1, m+2)
 with Timer("ogf", logger=None):
     ogf = 1 / (1 - grid - radii)
     ogf[0] = hockeystick + 1
     ogf[-1] = hockeystick + 1
 radii_power = radii**(m+1)
+
 intervals = np.empty(n, dtype="object")
-Verbose.verboseprint("Evaluation...")
+
+with Timer("conv 2", logger=None):
+    dct_eval = polys2cheb_dct(p)
 for i in range(n):
-    indices = []
-    with Timer("conversion 2", logger=None):
-        _p = np.polynomial.chebyshev.poly2cheb(p[i])
-        
+    _p = dct_eval[i]
     factor = radii_power * max(p[i], key=abs)
     bound = np.minimum(ogf, hockeystick) * factor
     with Timer("approximation", logger=None):
         for k in range(m+1):
             tmp = np.polynomial.chebyshev.chebder(_p, k)
             p_der[k,:] = 1/factorial(k) * corrected_idct(tmp, n)
-    for j in range(n):
-        with Timer("isolation", logger=None):
-            # np.dot(p_der[:,j],monomials[j]) # <---------- compute the powers separately
-            if 0 in ft.arb_poly(p_der[:,j].tolist())(ft.arb(0,radii[j])) + ft.arb(0,bound[j]):
+    with Timer("isolation", logger=None):
+        indices = []
+        a_0 = p_der[0,:]
+        q = np.abs(p_der)
+        q[0,:] = 0
+        val = np.einsum('ij,ji->j', q, monomials)
+        bools = np.logical_and(a_0 - val - bound < 0, 0 < a_0 + val + bound)
+        for j in range(n):
+            if bools[j]:
                 indices.append((i,j))
-    with Timer("new isolation", logger=None):
-        intervals[i] = f(bound, p_der, monomials, n, i)
-    # intervals[i] = indices
+        intervals[i] = indices
+
 timers = Timer.timers
 print(f"""radii: {timers['radii']}
 ogf: {timers['ogf']}
-conversion (x): {timers['conversion']}
-conversion (y): {timers['conversion 2']}
+conversion (x) + idct: {timers['conversion']}
+conversion (y): {timers['conv 2']}
 approximation: {timers['approximation']}
-isolation: {timers['isolation']}
-new isolation: {timers['new isolation']}""")
+isolation: {timers['isolation']}""")
 
 # Show isolated intervals
 

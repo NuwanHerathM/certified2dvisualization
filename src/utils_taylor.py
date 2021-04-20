@@ -1,13 +1,39 @@
-import flint as ft
-from math import pi
+import numpy as np
+import scipy.fftpack as fp
+from math import cos, pi
 
-from codetiming import Timer
+def polys2cheb_dct(polys):
+    """
+    Vectorized polynomial conversion from canonical basis to Chebyshev basis
 
-# Obsolete file
+    Parameters
+    ----------
+    polys: 2D array
+           Array of polynomials (arrays of coefficients)
+    """
+    (n, d) = polys.shape
+    nodes_power = np.empty((d, d))
+    nodes = np.array([cos((2 * i + 1) * pi / (2 * d)) for i in range(d)])
+    for i in range(d):
+        nodes_power[:,i] = nodes[i]**np.arange(d)
+    node_eval = np.asmatrix(polys) * np.asmatrix(nodes_power)
+    dct_eval = np.empty((n, d))
+    for i in range(n):
+        dct_eval[i] = fp.dct(node_eval[i]) 
+    dct_eval /= (d)
+    dct_eval[:,0] /= 2
 
-def vanishes(poly, hs, ogf, factor, r):
-    with Timer("bound", logger=None):
-        b = min(ogf, hs) * factor
-    with Timer("eval", logger=None):
-        ball = poly(ft.arb(0,r)) #+ ft.arb(0, b)
-    return 0 in ball
+    return dct_eval
+
+def corrected_idct(poly, n):
+    """
+    Correction of scipy.fftpack.idct
+
+    Parameters
+    ----------
+    poly: array
+          Polynomial or array of polynomials
+    n: int
+       Number of points
+    """
+    return (fp.idct(poly, n=n).T + poly[...,0]) / 2
