@@ -9,6 +9,7 @@ This is beginning to become an actual readme...
 - `flint-py`
 - `codetiming`
 - `binarytree`
+- `vispy` ([here](https://vispy.org/installation.html))
 Not used currently:
 - `numba` (requires `llvmlite` and thus `llvm-10` or `llvm-9`)
 
@@ -60,4 +61,10 @@ For additional information use:
 
 ```
 python3 main.py --help
+```
+
+or
+
+```
+python3 taylor.py --help
 ```

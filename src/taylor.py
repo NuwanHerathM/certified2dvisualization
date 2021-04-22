@@ -3,7 +3,9 @@ import os
 
 import numpy as np
 from math import cos, pi, factorial
+from numpy.core.arrayprint import printoptions
 import scipy.fftpack as fp
+from vispy import color
 from utils_taylor import polys2cheb_dct, corrected_idct
 import flint as ft
 from scipy.special import comb
@@ -97,6 +99,8 @@ intervals = np.empty(n, dtype="object")
 
 with Timer("conv 2", logger=None):
     dct_eval = polys2cheb_dct(p)
+
+intervals = []
 for i in range(n):
     _p = dct_eval[i]
     factor = radii_power * max(p[i], key=abs)
@@ -106,7 +110,6 @@ for i in range(n):
             tmp = np.polynomial.chebyshev.chebder(_p, k)
             p_der[k,:] = 1/factorial(k) * corrected_idct(tmp, n)
     with Timer("isolation", logger=None):
-        indices = []
         a_0 = p_der[0,:]
         q = np.abs(p_der)
         q[0,:] = 0
@@ -114,8 +117,7 @@ for i in range(n):
         bools = np.logical_and(a_0 - val - bound < 0, 0 < a_0 + val + bound)
         for j in range(n):
             if bools[j]:
-                indices.append((i,j))
-        intervals[i] = indices
+                intervals.append((i,j))
 
 timers = Timer.timers
 print(f"""radii: {timers['radii']}
@@ -137,14 +139,69 @@ if not args.hide:
     interval_lut = [(grid[i+1] + grid[i]) / 2 for i in range(n-1)]
     interval_lut.insert(0, 1)
     interval_lut.append(-1)
-    segments = []
-    for i in range(n):
-        for e in intervals[i]:
-            segments.append([(grid[e[0]], interval_lut[e[1]]), (grid[e[0]], interval_lut[e[1]+1])])
+    edges = []
+    nodes = []
+    for e in intervals:
+        edges.append([(grid[e[0]], interval_lut[e[1]]), (grid[e[0]], interval_lut[e[1]+1])])
+        nodes.append([grid[e[0]], interval_lut[e[1]]])
+        nodes.append([grid[e[0]], interval_lut[e[1]+1]])
 
-    lc = mc.LineCollection(segments, linewidths=0.1)
+    lc = mc.LineCollection(edges, linewidths=0.1)
     ax1.add_collection(lc)
     plt.xlim(-1, 1)
     plt.ylim(-1, 1)
 
-    plt.show()
+    plt.draw()
+    plt.show(block=False)
+
+    import sys
+    from vispy import scene, app
+    import vispy.io
+
+    canvas = scene.SceneCanvas(keys='interactive', size=(1000, 1000), show=True, bgcolor='white')
+    grid = canvas.central_widget.add_grid(margin=10)
+    grid.spacing = 0
+
+    title = scene.Label("Plot Title", color='black')
+    title.height_max = 40
+    grid.add_widget(title, row=0, col=0, col_span=2)
+
+    yaxis = scene.AxisWidget(orientation='left',
+                            axis_label='Y Axis',
+                            axis_font_size=12,
+                            axis_label_margin=50,
+                            tick_label_margin=5,
+                            text_color='black')
+    yaxis.width_max = 80
+    grid.add_widget(yaxis, row=1, col=0)
+
+    xaxis = scene.AxisWidget(orientation='bottom',
+                            axis_label='X Axis',
+                            axis_font_size=12,
+                            axis_label_margin=50,
+                            tick_label_margin=5,
+                            text_color='black')
+
+    xaxis.height_max = 80
+    grid.add_widget(xaxis, row=2, col=1)
+
+    right_padding = grid.add_widget(row=1, col=2, row_span=1)
+    right_padding.width_max = 50
+
+    view = grid.add_view(row=1, col=1, border_color='black')
+    nodes = np.asarray(nodes)
+    N = len(nodes)
+    edges = np.empty((int(N / 2), 2))
+    edges[:, 0] = np.arange(0, N, 2)
+    edges[:, 1] = np.arange(1, N, 2)
+    plot = scene.Line(pos=nodes, connect=edges, width=2, parent=view.scene)
+    view.camera = scene.PanZoomCamera(rect=(-1, -1, 2, 2))
+
+    xaxis.link_view(view)
+    yaxis.link_view(view)
+
+    # img = canvas.render()
+    # vispy.io.write_png("image.png", img)
+
+    if __name__ == '__main__' and sys.flags.interactive == 0:
+        app.run()
