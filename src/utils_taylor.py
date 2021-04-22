@@ -1,6 +1,10 @@
+from re import T
 import numpy as np
 import scipy.fftpack as fp
-from math import cos, pi
+from math import cos, log, pi, floor
+import sys
+
+from inspect import currentframe, getframeinfo
 
 def polys2cheb_dct(polys):
     """
@@ -20,7 +24,20 @@ def polys2cheb_dct(polys):
     nodes_power = np.empty((d, d))
     nodes = np.array([cos((2 * i + 1) * pi / (2 * d)) for i in range(d)])
     for i in range(d):
-        nodes_power[:,i] = nodes[i]**np.arange(d) #if nodes[i] > 10e-12 else np.zeros(d) # arbitrary decision to avoid underflow
+        try:
+            nodes_power[:,i] = nodes[i]**np.arange(d)
+        except FloatingPointError:
+            frameinfo = getframeinfo(currentframe())
+            print(frameinfo.filename, frameinfo.lineno)
+            print("An underflow issue has been handled manually.")
+            val = nodes[i]
+            max_d = floor(log(sys.float_info.min) / log(abs(val)))
+            head = val**np.arange(max_d)
+            tail = np.repeat(sys.float_info.min, d - max_d)
+            if val < 0:
+                tail[::2] *= (-1)**max_d
+                tail[1::2] *= (-1)**(max_d+1)
+            nodes_power[:,i] = np.append(head, tail)
     node_eval = np.asmatrix(polys) * np.asmatrix(nodes_power)
     dct_eval = np.empty((n, d))
     for i in range(n):

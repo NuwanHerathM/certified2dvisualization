@@ -3,9 +3,6 @@ import os
 
 import numpy as np
 from math import cos, pi, factorial
-from numpy.core.arrayprint import printoptions
-import scipy.fftpack as fp
-from vispy import color
 from utils_taylor import polys2cheb_dct, corrected_idct
 import flint as ft
 from scipy.special import comb
