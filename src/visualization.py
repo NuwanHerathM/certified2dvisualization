@@ -17,12 +17,15 @@ class Visualization:
             try:
                 item = next(iterator)
             except StopIteration:
+                if last[1] != -1:
+                        res.append(last)
                 break  # Iterator exhausted: stop the loop
             else:
-                if last[1] == item[0]:
-                    last = (last[0], item[1])
+                if last[1] == item[0] and last[2] == item[2]:
+                    last = (last[0], item[1], last[2])
                 else:
-                    res.append(item)
+                    if last[1] != -1:
+                        res.append(last)
                     last = item
         return res
 
