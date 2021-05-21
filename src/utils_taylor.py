@@ -3,6 +3,7 @@ import numpy as np
 import scipy.fftpack as fp
 from math import cos, log, pi, floor
 import sys
+import flint as ft
 
 from inspect import currentframe, getframeinfo
 
@@ -42,7 +43,7 @@ def polys2cheb_dct(polys):
     dct_eval = np.empty((n, d))
     for i in range(n):
         dct_eval[i] = fp.dct(node_eval[i]) 
-    dct_eval /= (d)
+    dct_eval /= d
     dct_eval[:,0] /= 2
 
     return dct_eval
@@ -68,3 +69,23 @@ def corrected_idct(poly, n):
     The output is the transpose of what one could expect. It was more convenient for me this way.
     """
     return (fp.idct(poly, n=n).T + poly[...,0]) / 2
+
+def interval_idct(poly, n=None):
+    if n is None:
+        n = len(poly)
+    x = np.zeros(n+1)
+    x[:len(poly)] = poly
+    v = np.zeros(n, dtype=object)
+    N = ft.acb(n)
+    for i in range(n):
+        w = ft.acb.exp_pi_i(ft.acb(i) / (2 * N))
+        v[i] = w / 2 * ft.acb(x[i], -x[n-i])
+    V = ft.acb.dft(v, True)
+    X = np.zeros(n, dtype=object)
+    X[::2] = V[:floor((n+1)/2)]
+    X[1::2] = V[-1:floor((n-1)/2):-1]
+
+    for i in range(n):
+        X[i] = X[i].real
+
+    return X

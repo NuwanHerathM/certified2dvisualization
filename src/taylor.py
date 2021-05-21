@@ -191,7 +191,7 @@ if not args.hide:
     edges = np.empty((int(N / 2), 2))
     edges[:, 0] = np.arange(0, N, 2)
     edges[:, 1] = np.arange(1, N, 2)
-    plot = scene.Line(pos=nodes, connect=edges, width=2, parent=view.scene)
+    plot = scene.Line(pos=nodes, connect=edges, width=3, parent=view.scene)
     view.camera = scene.PanZoomCamera(rect=(-1, -1, 2, 2))
 
     xaxis.link_view(view)

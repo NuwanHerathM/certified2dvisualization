@@ -2,7 +2,12 @@ import numpy as np
 from math import cos, pi, floor, acos, ceil
 from scipy.fft import idct
 from codetiming import Timer
+from utils_taylor import interval_idct
 
+idct_switch = {
+    'numeric': idct,
+    'interval': interval_idct
+}
 
 class IDCTHandler:
 
@@ -25,13 +30,13 @@ class IDCTHandler:
         self.d = len(coef)
         self.n = n
 
-    def getResult(self, grid):
+    def getResult(self, grid, userchoice='interval'):
         r_z = []
         if (grid.lower_x != grid.upper_x):
             with Timer("conversion", logger=None):
                 p_z = np.polynomial.chebyshev.poly2cheb(self.coef)
             with Timer("evaluation", logger=None):
-                r_z = [(grid.zero['N_x'] * x + p_z[0]) / 2 for x in idct(p_z, n=grid.zero['N_x'])][grid.zero['i_min_x']:grid.zero['i_max_x']+1]
+                r_z = (grid.zero['N_x'] * idct_switch[userchoice](p_z, n=grid.zero['N_x']) + p_z[0] / 2)[grid.zero['i_min_x']:grid.zero['i_max_x']+1]
 
         with Timer("change", logger=None):
             inv_coef = self.coef[::-1]
@@ -42,7 +47,7 @@ class IDCTHandler:
         if (grid.x_min != grid.lower_x):
             cos_m = [cos((2 * i + 1) * pi / (2 * grid.minus['N_x'])) for i in range(grid.minus['i_min_x'], grid.minus['i_max_x'] + 1)]
             with Timer("evaluation", logger=None):
-                p_m = [(grid.minus['N_x'] * x + p_inv[0]) / 2 for x in idct(p_inv, n=grid.minus['N_x'])][grid.minus['i_min_x']:grid.minus['i_max_x']+1]
+                p_m = (grid.minus['N_x'] * idct_switch[userchoice](p_inv, n=grid.minus['N_x']) + p_inv[0] / 2)[grid.minus['i_min_x']:grid.minus['i_max_x']+1]
             with Timer("change", logger=None):
                 pow_m = np.array([e**self.d for e in cos_m])
                 r_m = np.divide(p_m, pow_m)
@@ -51,7 +56,7 @@ class IDCTHandler:
         if (grid.upper_x != grid.x_max):
             cos_p = [cos((2 * i + 1) * pi / (2 * grid.plus['N_x'])) for i in range(grid.plus['i_min_x'], grid.plus['i_max_x'] + 1)]
             with Timer("evaluation", logger=None):
-                p_p = [(grid.plus['N_x'] * x + p_inv[0]) / 2 for x in idct(p_inv, n=grid.plus['N_x'])][grid.plus['i_min_x']:grid.plus['i_max_x']+1]
+                p_p = (grid.plus['N_x'] * idct_switch[userchoice](p_inv, n=grid.plus['N_x']) + p_inv[0] / 2)[grid.plus['i_min_x']:grid.plus['i_max_x']+1]
             with Timer("change", logger=None):
                 pow_p = np.array([e**self.d for e in cos_p])
                 r_p = np.divide(p_p, pow_p)
