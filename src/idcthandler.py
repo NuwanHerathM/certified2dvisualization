@@ -2,11 +2,12 @@ import numpy as np
 from math import cos, pi, floor, acos, ceil
 from scipy.fft import idct
 from codetiming import Timer
-from utils_taylor import interval_idct
+from utils_taylor import interval_idct, error_idct
 
 idct_switch = {
     'numeric': idct,
-    'interval': interval_idct
+    'interval': interval_idct,
+    'error' : error_idct
 }
 
 class IDCTHandler:

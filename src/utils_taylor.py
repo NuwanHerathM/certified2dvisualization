@@ -1,9 +1,10 @@
 from re import T
 import numpy as np
 import scipy.fftpack as fp
-from math import cos, log, pi, floor
+from math import cos, log, pi, floor, sqrt
 import sys
 import flint as ft
+from scipy.fft import idct
 
 from inspect import currentframe, getframeinfo
 
@@ -89,3 +90,17 @@ def interval_idct(poly, n=None):
         X[i] = X[i].real
 
     return X
+
+def error_idct(poly, n=None):
+    if n is None:
+        n = len(poly)
+    x_max = max(poly)
+    u = np.finfo(float).eps
+    rho = 2 * u # if FMA
+    g = u / sqrt(2) + rho * (1 + u / sqrt(2))
+    factor = sqrt(2) * (sqrt(2) * (1 + u)**2 * (1 + g)**2 * ((1 + u)**n * (1 + g)**(n-2) - 1) + (1 + u)**2 * (1 + g)**2 - 1)
+    X = idct(poly, n=n)
+    res = np.empty(n, dtype=object)
+    for i in range(n):
+        res[i] = ft.arb(X[i], x_max * factor)
+    return res
