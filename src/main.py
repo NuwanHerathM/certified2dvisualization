@@ -10,7 +10,8 @@ from codetiming import Timer
 
 import logging
 
-from visu_utils import Verbose, comb2D, factorial2D
+from verbosity import Verbose
+from utils import comb2D, factorial2D
 
 # Parse the input
 np.seterr(all='raise')

@@ -3,10 +3,10 @@ import os
 
 import numpy as np
 from math import cos, pi, factorial
-from utils_taylor import polys2cheb_dct, corrected_idct
+from utils import polys2cheb_dct, corrected_idct, comb2D, factorial2D
 import flint as ft
 from scipy.special import comb
-from visu_utils import comb2D, factorial2D, Verbose
+from verbosity import Verbose
 
 import matplotlib.pyplot as plt
 from matplotlib import collections as mc

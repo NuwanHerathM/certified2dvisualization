@@ -23,7 +23,7 @@ import warnings
 
 import clenshaw as cs
 
-from visu_utils import Verbose
+from verbosity import Verbose
 
 # Logger
 
@@ -85,7 +85,7 @@ class Subdivision:
         for j in range(self.deg_y + 1):
             p = np.trim_zeros(poly[:,j], 'b')
             if (len(p) == 0):
-                p = [0]
+                p = np.zeros(1)
             if use_clen:
                 # if we want to use Clenshaw with the Chebyshev basis
                 with Timer("conversion", logger=None):
@@ -107,7 +107,7 @@ class Subdivision:
                     self.cmplxty.incrHorner()
             else:
                 #if we want to use the IDCT with the Chebyshev basis
-                idct = IDCTHandler(p, n)
+                idct = IDCTHandler(p.reshape((-1,)), n) # reshape is a hack to avoid a bug when switching between elliptic and flat polynomials
                 self.cmplxty.incrIDCT()
                 partial_poly[:,j] = idct.getResult(self.grid)
         intervals = np.empty(n, dtype="object")
