@@ -60,16 +60,17 @@ def interval_polys2cheb_dct(polys):
     if dim_1:
         polys.shape = (1, len(polys))
     (n, d) = polys.shape
-    nodes_power = np.empty((d, d))
+    nodes_power = np.empty((d, d), dtype=object)
     D = ft.acb(d)
     nodes = np.array([ft.acb.cos_pi((2 * ft.acb(i) + 1) / (2 * D)) for i in range(d)])
     for i in range(d):
-        nodes_power[:,i] = nodes[i]**np.arange(d)
-    print(node)
+        for j in range(d):
+            nodes_power[j,i] = nodes[i]**j
     node_eval = np.asarray(np.asmatrix(polys) * np.asmatrix(nodes_power))
-    dct_eval = np.empty((n, d))
+    dct_eval = np.empty((n, d), dtype=object)
     for i in range(n):
         dct_eval[i] = interval_dct(node_eval[i])
+
     dct_eval /= d
     dct_eval[:,0] /= 2
 
@@ -122,9 +123,9 @@ def interval_idct(poly, n=None):
 def interval_dct(poly, n=None):
     if n is None:
         n = len(poly)
-    x = np.zeros(n)
+    x = np.zeros(n, dtype=object)
     x[:len(poly)] = poly # zero padding
-    v = np.empty(n)
+    v = np.empty(n, dtype=object)
     v[:floor((n+1)/2)] = x[::2]
     v[-1:floor((n+1)/2)-1:-1] = x[1::2]
     V = ft.acb.dft(v)
