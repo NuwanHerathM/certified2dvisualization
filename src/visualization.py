@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib import collections as mc
 import statistics
 import numpy as np
+from verbosity import Verbose
 
 class Visualization:
 
@@ -61,8 +62,11 @@ class Visualization:
 
             if save:
                 filename = os.path.splitext(os.path.basename(poly))[0]
-                plt.savefig(f"../output/{filename}_{n-1}_{eval_method}_{isol_method}.png", bbox_inches='tight')
-                plt.savefig(f"../output/{filename}_{n-1}_{eval_method}_{isol_method}.pdf", bbox_inches='tight', dpi=1200)
+                outpath_png = f"../output/{filename}_{n}_{eval_method}_{isol_method}.png"
+                outpath_pdf = f"../output/{filename}_{n}_{eval_method}_{isol_method}.pdf"
+                plt.savefig(outpath_png, bbox_inches='tight')
+                plt.savefig(outpath_pdf, bbox_inches='tight', dpi=1200)
+                Verbose.verboseprint("Figure saved at the following locations:\n\t" + outpath_png + "\n\t" + outpath_pdf)
             
             # Frequency analysis
             if freq:
@@ -83,4 +87,5 @@ class Visualization:
                 plt.xlabel('time (s)')
 
             if not hide:
+                Verbose.verboseprint("Done.")
                 plt.show()

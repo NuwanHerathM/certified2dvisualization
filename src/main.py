@@ -19,7 +19,7 @@ dirname = os.path.dirname(__file__)
 default_file = os.path.join(dirname, '../polys/circle.poly')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('n', type=int, help="size of the grid (number of subdivision intervals)")
+parser.add_argument('n', type=int, help="size of the grid (number of points or number of subdivision intervals - 1)")
 parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
 parser.add_argument('-x', nargs=2, type=int, default=[-8,8], help="bounds on the x-axis")
 parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the y-axis")
@@ -40,7 +40,7 @@ parser.add_argument('-flat', help="use elliptic coefficients for the polynomial"
 
 args = parser.parse_args()
 
-n = args.n + 1 # number of points
+n = args.n # number of points
 use_clen = args.clen
 use_idct = args.idct
 use_dsc = args.dsc

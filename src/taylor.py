@@ -3,7 +3,9 @@ import os
 
 import numpy as np
 from math import cos, pi, factorial
-from utils import polys2cheb_dct, corrected_idct, comb2D, factorial2D
+
+from numpy.lib import utils
+from utils import polys2cheb_dct, idct_eval, comb2D, factorial2D
 import flint as ft
 from scipy.special import comb
 from verbosity import Verbose
@@ -73,7 +75,7 @@ Verbose.verboseprint("Evaluation...")
 p = np.empty((n,deg_y+1))
 with Timer("conversion", logger=None):
     _p = polys2cheb_dct(poly.T)
-    p = corrected_idct(_p, n)
+    p = idct_eval(_p, n).T
 
 radii = np.empty(n)
 with Timer("radii", logger=None):
@@ -105,7 +107,7 @@ for i in range(n):
     with Timer("approximation", logger=None):
         for k in range(m+1):
             tmp = np.polynomial.chebyshev.chebder(_p, k)
-            p_der[k,:] = 1/factorial(k) * corrected_idct(tmp, n)
+            p_der[k,:] = 1/factorial(k) * idct_eval(tmp, n).T
     with Timer("isolation", logger=None):
         a_0 = p_der[0,:]
         q = np.abs(p_der)
@@ -149,7 +151,7 @@ if not args.hide:
     plt.ylim(-1, 1)
 
     plt.draw()
-    plt.show(block=False)
+    plt.show(block=True)
 
     import sys
     from vispy import scene, app
