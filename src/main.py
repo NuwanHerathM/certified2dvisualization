@@ -81,7 +81,7 @@ poly = np.loadtxt(args.poly, dtype=int)
 # Core of the program
 
 if args.elliptic:
-    poly = np.multiply(poly, comb2D(deg_x + 1, deg_y + 1))
+    poly = np.multiply(poly, np.sqrt(comb2D(deg_x + 1, deg_y + 1)))
 if args.flat:
     poly = np.multiply(poly, 1/np.sqrt(factorial2D(deg_x + 1, deg_y + 1)))
 

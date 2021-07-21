@@ -6,10 +6,11 @@ This is beginning to become an actual readme...
 
 ### Some non-standart Python packages
 
-- `flint-py`
+- `flint-py` (available for python <= 3.8 with pip for now (July 2021))
 - `codetiming`
 - `binarytree`
 - `vispy` ([here](https://vispy.org/installation.html))
+- `pyinterval`
 Not used currently:
 - `numba` (requires `llvmlite` and thus `llvm-10` or `llvm-9`)
 

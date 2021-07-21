@@ -1,11 +1,12 @@
 from __future__ import print_function
 from re import T
 import numpy as np
-from math import cos, log, pi, floor, sqrt
-from scipy.special import comb, factorial
+from math import cos, log, pi, floor, sqrt, log2
+from scipy.special import comb
 import sys
 import flint as ft
 import scipy.fft
+from interval import fpu
 
 from inspect import currentframe, getframeinfo
 
@@ -66,7 +67,7 @@ def interval_polys2cheb_dct(polys):
 
     Parameters
     ----------
-    poly: array
+    polys: array
           Polynomial or array of polynomials
     
     Returns
@@ -88,6 +89,42 @@ def interval_polys2cheb_dct(polys):
     dct_eval = np.empty((n, d), dtype=object)
     for i in range(n):
         dct_eval[i] = interval_dct(node_eval[i])
+
+    dct_eval /= d
+    dct_eval[:,0] /= 2
+
+    res = dct_eval.reshape((-1,)) if dct_eval.shape[0] == 1 else dct_eval
+
+    return res * 2
+
+def error_polys2cheb_dct(polys):
+    """
+    Conversion from canonical basis to Chebyshev basis with error bound.
+
+    Parameters
+    ----------
+    polys: array
+          Polynomial or array of polynomials
+    
+    Returns
+    -------
+    chebs: 2D array
+              Array of polynomials in the Chebyshev basis
+    """
+    dim_1 = (polys.ndim == 1) # check if it is a polynomial instead of an array of polynomials
+    if dim_1:
+        polys.shape = (1, len(polys))
+    (n, d) = polys.shape
+    nodes_power = np.empty((d, d), dtype=object)
+    D = ft.acb(d)
+    nodes = np.array([ft.acb.cos_pi((2 * ft.acb(i) + 1) / (2 * D)).real for i in range(d)])
+    for i in range(d):
+        for j in range(d):
+            nodes_power[j,i] = nodes[i]**j
+    node_eval = polys @ nodes_power
+    dct_eval = np.empty((n, d), dtype=object)
+    for i in range(n):
+        dct_eval[i] = error_dct(node_eval[i])
 
     dct_eval /= d
     dct_eval[:,0] /= 2
@@ -134,7 +171,30 @@ def idct_eval(poly, n):
     """
     return (scipy.fft.idct(poly, n=n).T * n + poly[...,0] / 2).T
 
-def altered_dct(poly, n):
+def interval_idct_eval(poly, n):
+    """
+    Interval multipoint evaluation using the IDCT of a polynomial in the Chebyshev basis on Chebyshev nodes.
+
+    Parameters
+    ----------
+    poly: array
+          Polynomial in Chebyshev basis
+    n: int
+       Number of points
+    
+    Returns
+    -------
+    eval: array
+          Evaluation of the polynomial on the roots of the nth Chebyshev polynomial
+    """
+    assert poly.dtype is np.dtype('O'), "The polynomial should be an array of flint.arb."
+    return (interval_idct(poly, n) + poly[0] / 2)
+
+def error_idct_eval(poly, n):
+    assert poly.dtype is np.dtype('O'), "The polynomial should be an array of flint.arb."
+    return (error_idct(poly, n).T + poly[...,0] / 2).T
+
+def altered_dct(poly, n=None):
     """
     Alteration of scpiy.fft.dct.
 
@@ -152,6 +212,8 @@ def altered_dct(poly, n):
     idct: array
           DCT or array of DCTs
     """
+    if n is None:
+        n = poly.shape[-1]
     return scipy.fft.dct(poly, n=n) / 2
 
 def interval_idct(poly, n=None):
@@ -214,7 +276,7 @@ def interval_dct(poly, n=None):
     
     Returns
     -------
-    idct: array
+    dct: array
           DCT
     """
     if n is None:
@@ -250,6 +312,51 @@ def interval_dct(poly, n=None):
 
     return X[:-1] / 2
 
+def error_dct(polys, n=None):
+    """
+    DCT with its error bound.
+
+    Parameters
+    ----------
+    polys: array
+          Polynomial or array of polynomials
+    n: int
+       Number of points
+    
+    Returns
+    -------
+    dct: array
+          DCT
+    """
+    dim_1 = (polys.ndim == 1) # check if it is a polynomial instead of an array of polynomials
+    if dim_1:
+        polys.shape = (1, len(polys))
+    if n is None:
+        n = polys.shape[-1]
+    X = altered_dct(polys, n=n)
+
+    m = polys.shape[0]
+    x_max = np.amax(polys,axis=1)
+    saved = fpu._fegetround()
+    fpu._fesetround(fpu._fe_upward) # force upward floating point rounding (twoward infinity if positive and -infinity if negative)
+    log2_n = log2(n)
+    u = np.finfo(float).eps
+    rho = sqrt(5) * u # if naive multiplication (no FMA)
+    g = u / sqrt(2) + rho * (1 + u / sqrt(2))
+    factor = sqrt(2) * n * (((1 + u)**(log2_n-1) * (1 + g)**(log2_n-3) - 1) * (1 + (1 + u)**3 * (1 +g)**2) + sqrt(2) * ((1 + u)**3 * (1 + g)**2 - 1))
+    res = np.empty((m,n), dtype=object)
+    for i in range(m):
+        bound = x_max[i] * factor
+        for j in range(n):
+            res[i,j] = ft.arb(X[i,j], bound)
+    fpu._fesetround(saved)
+
+    if dim_1:
+        polys.shape = (polys.shape[-1],)
+        res = res.reshape((-1,))
+
+    return res
+
 def ft_acb_conj(z):
     """
     Compute the conjugate for the class flint.acb.
@@ -257,18 +364,49 @@ def ft_acb_conj(z):
     """
     return ft.acb(z.real,-z.imag)
 
-def error_idct(poly, n=None):
+def error_idct(polys, n=None):
+    """
+    IDCT with its error bound.
+
+    Parameters
+    ----------
+    polys: array
+          Polynomial or array of polynomials
+    n: int
+       Number of points
+    
+    Returns
+    -------
+    idct: array
+          IDCT
+    """
+    dim_1 = (polys.ndim == 1) # check if it is a polynomial instead of an array of polynomials
+    if dim_1:
+        polys.shape = (1, len(polys))
     if n is None:
-        n = len(poly)
-    x_max = max(poly)
+        n = polys.shape[-1]
+    X = altered_idct(polys, n=n)
+
+    m = polys.shape[0]
+    x_max = np.amax(polys,axis=1)
+    saved = fpu._fegetround()
+    fpu._fesetround(fpu._fe_upward) # force upward floating point rounding (twoward infinity if positive and -infinity if negative)
+    log2_n = log2(n)
     u = np.finfo(float).eps
     rho = sqrt(5) * u # if naive multiplication (no FMA)
     g = u / sqrt(2) + rho * (1 + u / sqrt(2))
-    factor = sqrt(2) * (sqrt(2) * (1 + u)**3 * (1 + g)**2 * ((1 + u)**(n-1) * (1 + g)**(n-3) - 1) + (1 + u)**3 * (1 + g)**2 - 1)
-    X = altered_idct(poly, n=n)
-    res = np.empty(n, dtype=object)
-    for i in range(n):
-        res[i] = ft.arb(X[i], x_max * factor)
+    factor = sqrt(2) * (sqrt(2) * (1 + u)**3 * (1 + g)**2 * ((1 + u)**(log2_n-1) * (1 + g)**(log2_n-3) - 1) + (1 + u)**3 * (1 + g)**2 - 1)
+    res = np.empty((m,n), dtype=object)
+    for i in range(m):
+        bound = x_max[i] * factor
+        for j in range(n):
+            res[i,j] = ft.arb(X[i,j], bound)
+    fpu._fesetround(saved)
+
+    if dim_1:
+        polys.shape = (polys.shape[-1],)
+        res = res.reshape((-1,))
+
     return res
 
 def comb2D(n, m):
@@ -296,6 +434,7 @@ def comb2D(n, m):
 def factorial2D(n,m):
     """
     Compute the 2D factorials.
+    Using interval arithmetic to avoid overflow issues.
 
     For 0<=i<n and 0<=j<m,
     .. math:: fact(i,j) = i!j!.
@@ -307,6 +446,10 @@ def factorial2D(n,m):
     m : int
         Number of columns of the output
     """
-    x = factorial(np.arange(n))[np.newaxis]
-    y = factorial(np.arange(m))[np.newaxis]
+    x = np.empty((1,n), dtype=object)
+    for i in range(n):
+        x[0,i] = ft.arb(i).fac()
+    y = np.empty((1,m), dtype=object)
+    for j in range(m):
+        y[0,j] = ft.arb(j).fac()
     return x.T @ y
