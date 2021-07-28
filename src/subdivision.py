@@ -54,11 +54,11 @@ class Subdivision:
         self.cmplxty.resetSubdivision()
 
         def aux(low, up, branch, node=None):
-            min = val[low]
-            max = val[up]
+            mini = val[low] 
+            maxi = val[up]
             mid = int(low + (up - low) / 2)
-            median = (min + max) / 2
-            radius = (max - min) / 2
+            median = (mini + maxi) / 2
+            radius = (maxi - mini) / 2
 
             ball = ft.arb(median,radius)
             a = p(ball)
@@ -66,8 +66,8 @@ class Subdivision:
                 new_node = self.cmplxty.posIntEval(branch, node)
                 if (up - low == 1 or (self.use_der and 0 not in p_der(ball))):
                     if self.use_der:
-                        if p(min) * p(max) <= 0:
-                            y0 = optimize.brentq(p, min, max)
+                        if p(mini) * p(maxi) <= 0:
+                            y0 = optimize.brentq(p, min, maxi)
                             idx = np.searchsorted(val[low:up+1], y0) + low
                             return [(idx -1, idx, True)]
                     return [(low, up, up - low == 1)]

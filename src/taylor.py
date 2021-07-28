@@ -89,7 +89,7 @@ for i in range(n):
 
 hockeystick = comb(deg_x+1, m+2)
 with Timer("ogf", logger=None):
-    ogf = 1 / (1 - grid - radii)
+    ogf = 1 / (1 - np.abs(grid) - radii)
     ogf[0] = hockeystick + 1
     ogf[-1] = hockeystick + 1
 radii_power = radii**(m+1)

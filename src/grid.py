@@ -149,7 +149,7 @@ class Grid:
             inv_cos_p = list(map(lambda x: 1 / x, cos_p))
             inv_cos_p.reverse()
 
-        return inv_cos_m + cos_z + inv_cos_p
+        return np.array(inv_cos_m + cos_z + inv_cos_p)
 
     def computeXsYsForIDCT(self, d, x_scale, y_scale):
         """

@@ -10,6 +10,19 @@ from interval import fpu
 
 from inspect import currentframe, getframeinfo
 
+class UpwardRounding:
+    """
+    Context manager for upward rounding.
+    """
+    saved = None
+
+    def __enter__(self):
+        self.saved = fpu._fegetround()
+        fpu._fesetround(fpu._fe_upward)
+    
+    def __exit__(self, *args, **kwargs):
+        fpu._fesetround(self.saved)
+
 def polys2cheb_dct(polys):
     """
     Vectorized polynomial conversion from canonical basis to Chebyshev basis.
@@ -190,6 +203,16 @@ def interval_idct_eval(poly, n):
     assert poly.dtype is np.dtype('O'), "The polynomial should be an array of flint.arb."
     return (interval_idct(poly, n) + poly[0] / 2)
 
+def loop_interval_idct_eval(polys, n):
+    """
+    Looped version of interval_idct_eval, for multiple polynomials.
+    """
+    l = polys.shape[0]
+    res = np.empty((l, n), dtype=object)
+    for i in range(l):
+        res[i] = interval_idct_eval(polys[i,:], n)
+    return res
+
 def error_idct_eval(poly, n):
     assert poly.dtype is np.dtype('O'), "The polynomial should be an array of flint.arb."
     return (error_idct(poly, n).T + poly[...,0] / 2).T
@@ -312,6 +335,14 @@ def interval_dct(poly, n=None):
 
     return X[:-1] / 2
 
+def factor_dct(n):
+    log2_n = log2(n)
+    u = np.finfo(float).eps
+    rho = sqrt(5) * u # if naive multiplication (no FMA)
+    g = u / sqrt(2) + rho * (1 + u / sqrt(2))
+    factor = sqrt(2) * n * (((1 + u)**(log2_n-1) * (1 + g)**(log2_n-3) - 1) * (1 + (1 + u)**3 * (1 +g)**2) + sqrt(2) * ((1 + u)**3 * (1 + g)**2 - 1))
+    return factor
+
 def error_dct(polys, n=None):
     """
     DCT with its error bound.
@@ -337,19 +368,13 @@ def error_dct(polys, n=None):
 
     m = polys.shape[0]
     x_max = np.amax(polys,axis=1)
-    saved = fpu._fegetround()
-    fpu._fesetround(fpu._fe_upward) # force upward floating point rounding (twoward infinity if positive and -infinity if negative)
-    log2_n = log2(n)
-    u = np.finfo(float).eps
-    rho = sqrt(5) * u # if naive multiplication (no FMA)
-    g = u / sqrt(2) + rho * (1 + u / sqrt(2))
-    factor = sqrt(2) * n * (((1 + u)**(log2_n-1) * (1 + g)**(log2_n-3) - 1) * (1 + (1 + u)**3 * (1 +g)**2) + sqrt(2) * ((1 + u)**3 * (1 + g)**2 - 1))
-    res = np.empty((m,n), dtype=object)
-    for i in range(m):
-        bound = x_max[i] * factor
-        for j in range(n):
-            res[i,j] = ft.arb(X[i,j], bound)
-    fpu._fesetround(saved)
+    with UpwardRounding(): # force upward floating point rounding (twoward infinity if positive and -infinity if negative)
+        factor = factor_dct(n)
+        res = np.empty((m,n), dtype=object)
+        for i in range(m):
+            bound = x_max[i] * factor
+            for j in range(n):
+                res[i,j] = ft.arb(X[i,j], bound)
 
     if dim_1:
         polys.shape = (polys.shape[-1],)
@@ -363,6 +388,14 @@ def ft_acb_conj(z):
     Such a function exists though for the class flint.acb_mat (flint.acb_mat.conjugate).
     """
     return ft.acb(z.real,-z.imag)
+
+def factor_idct(n):
+    log2_n = log2(n)
+    u = np.finfo(float).eps
+    rho = sqrt(5) * u # if naive multiplication (no FMA)
+    g = u / sqrt(2) + rho * (1 + u / sqrt(2))
+    factor = sqrt(2) * (sqrt(2) * (1 + u)**3 * (1 + g)**2 * ((1 + u)**(log2_n-1) * (1 + g)**(log2_n-3) - 1) + (1 + u)**3 * (1 + g)**2 - 1)
+    return factor
 
 def error_idct(polys, n=None):
     """
@@ -389,19 +422,13 @@ def error_idct(polys, n=None):
 
     m = polys.shape[0]
     x_max = np.amax(polys,axis=1)
-    saved = fpu._fegetround()
-    fpu._fesetround(fpu._fe_upward) # force upward floating point rounding (twoward infinity if positive and -infinity if negative)
-    log2_n = log2(n)
-    u = np.finfo(float).eps
-    rho = sqrt(5) * u # if naive multiplication (no FMA)
-    g = u / sqrt(2) + rho * (1 + u / sqrt(2))
-    factor = sqrt(2) * (sqrt(2) * (1 + u)**3 * (1 + g)**2 * ((1 + u)**(log2_n-1) * (1 + g)**(log2_n-3) - 1) + (1 + u)**3 * (1 + g)**2 - 1)
-    res = np.empty((m,n), dtype=object)
-    for i in range(m):
-        bound = x_max[i] * factor
-        for j in range(n):
-            res[i,j] = ft.arb(X[i,j], bound)
-    fpu._fesetround(saved)
+    with UpwardRounding(): # force upward floating point rounding (twoward infinity if positive and -infinity if negative)
+        factor = factor_idct(n)
+        res = np.empty((m,n), dtype=object)
+        for i in range(m):
+            bound = x_max[i] * factor
+            for j in range(n):
+                res[i,j] = ft.arb(X[i,j], bound)
 
     if dim_1:
         polys.shape = (polys.shape[-1],)
@@ -453,3 +480,22 @@ def factorial2D(n,m):
     for j in range(m):
         y[0,j] = ft.arb(j).fac()
     return x.T @ y
+
+def subdivide(val, p):
+    def aux(low, up):
+        mini = val[low]
+        maxi = val[up]
+        mid = int(low + (up - low) / 2)
+        median = (mini + maxi) / 2
+        radius = (maxi - mini) / 2
+
+        ball = ft.arb(median,radius)
+        a = p(ball)
+        if 0 in a:
+            if (up - low == 1 ):
+                return [(low, up, up - low == 1)]
+            return aux(low, mid) + aux(mid, up)
+        else:
+            return []
+    res = aux(0, len(val)-1)
+    return res
