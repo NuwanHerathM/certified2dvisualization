@@ -31,7 +31,7 @@ class Visualization:
         return res
 
     @staticmethod
-    def show(intervals, poly, default_file, use_clen, use_idct, use_dsc, use_cs, hide, save, freq, time_distibution, n, grid, idct2d):
+    def show(vertical, horizontal, poly, default_file, use_clen, use_idct, use_dsc, use_cs, hide, save, freq, time_distibution, n, grid, idct2d):
         if (not hide or save):
             # Drawing of the polynomial
             fig1 = plt.figure(dpi=600)
@@ -46,8 +46,11 @@ class Visualization:
             segments = []
             colors = []
             for i in range(n):
-                for e in Visualization.merge(intervals[i]):
+                for e in Visualization.merge(vertical[i]):
                     segments.append([(grid.xs[i], grid.ys[e[0]]), (grid.xs[i], grid.ys[e[1]])])
+                    colors.append((not e[2], 0, 0, 1))
+                for e in Visualization.merge(horizontal[i]):
+                    segments.append([(grid.ys[e[0]], grid.xs[i]), (grid.ys[e[1]], grid.xs[i])])
                     colors.append((not e[2], 0, 0, 1))
 
             lc = mc.LineCollection(segments, colors=colors, linewidths=0.1)
