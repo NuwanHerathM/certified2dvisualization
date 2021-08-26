@@ -104,67 +104,75 @@ for direction in {'x', 'y'}:
     else:
         sub = None
         Verbose.verboseprint("\tPartial evaluation...")
-        if args.error:
-            # error tracking
-            my_poly2cheb = error_polys2cheb_dct
-            my_idct_eval = error_idct_eval
-        else:
-            # interval arithmetic
-            my_poly2cheb = interval_polys2cheb_dct
-            my_idct_eval = loop_interval_idct_eval
-        cheb = my_poly2cheb(poly.T)
-        poly_y = my_idct_eval(cheb,n)
-        import flint as ft
-        intervals = np.empty(n, dtype="object")
-        if not args.taylor:
-            Verbose.verboseprint("\tSubdivision...")
-            grid.computeXsYsForIDCT(deg_x, 'nodes', 'linear')
-            for i in range(n):
-                p = ft.arb_poly(poly_y[:,i].tolist())
-                intervals[i] = subdivide(grid.ys, p)
-        else:
-            Verbose.verboseprint("\tLocal approximation...")
-            grid.computeXsYsForIDCT(max(deg_x, deg_y), 'nodes', 'nodes')
-            m = args.m
-            p_der = np.zeros((m+1,n))
-            radii = np.empty(n)
-            with UpwardRounding():
+        with Timer("partial evaluation", logger=None):
+            if args.error:
+                # error tracking
+                my_poly2cheb = error_polys2cheb_dct
+                my_idct_eval = error_idct_eval
+            else:
+                # interval arithmetic
+                my_poly2cheb = interval_polys2cheb_dct
+                my_idct_eval = loop_interval_idct_eval
+            cheb = my_poly2cheb(poly.T)
+            poly_y = my_idct_eval(cheb,n)
+            import flint as ft
+            intervals = np.empty(n, dtype="object")
+        with Timer("second step", logger=None):
+            if not args.taylor:
+                Verbose.verboseprint("\tSubdivision...")
+                grid.computeXsYsForIDCT(deg_x, 'nodes', 'linear')
                 for i in range(n):
-                    r_left = -(grid.ys[i] - grid.ys[i-1]) / 2 if 0 < i else 0
-                    r_right = -(grid.ys[i+1] - grid.ys[i]) / 2 if i < n - 1 else 0
-                    radii[i] = max(r_left, r_right)
-
-                hockeystick = comb(deg_x+1, m+2)
-                ogf = 1 / (1 - np.abs(grid.ys) - radii)
-                ogf[0] = hockeystick + 1
-                ogf[-1] = hockeystick + 1
-                radii_power = radii**(m+1)
-
-            poly_der = np.empty((n,m+1,poly_y.shape[0]), dtype=object)
-            poly_der[:,0,:] = poly_y.T
-            for i in range(n):
-                for j in range(m):
-                    poly_der[i,j+1,:-1-j] = ft.arb_poly(poly_der[i,j,:poly_der.shape[2]-j].tolist()).derivative()
-                    poly_der[i,j+1,-1-j:] = 0
-            poly_approx = np.empty((n,n,m+1), dtype=object)
-            for i in range(m+1):
-                tmp = my_poly2cheb(poly_der[:,i,:])
-                poly_approx[:,:,i] = 1 / ft.arb(i).fac() * my_idct_eval(tmp,n)
-            intervals = []
-            for i in range(n):
+                    p = ft.arb_poly(poly_y[:,i].tolist())
+                    intervals[i] = subdivide(grid.ys, p)
+            else:
+                Verbose.verboseprint("\tLocal approximation...")
+                grid.computeXsYsForIDCT(max(deg_x, deg_y), 'nodes', 'nodes')
+                m = args.m
+                p_der = np.zeros((m+1,n))
+                radii = np.empty(n)
                 with UpwardRounding():
-                    factor = radii_power * max(poly_y[:,i], key=abs)
-                    bound = np.minimum(ogf, hockeystick) * factor
-                for j in range(n):
-                    val = ft.arb_poly(poly_approx[i,j].tolist())(ft.arb(0,radii[j]))
-                    ball = ft.arb(0, bound[j])
-                    if 0 in val + ball:
-                        intervals.append((i,j))
+                    for i in range(n):
+                        r_left = -(grid.ys[i] - grid.ys[i-1]) / 2 if 0 < i else 0
+                        r_right = -(grid.ys[i+1] - grid.ys[i]) / 2 if i < n - 1 else 0
+                        radii[i] = max(r_left, r_right)
+
+                    hockeystick = comb(deg_x+1, m+2)
+                    ogf = 1 / (1 - np.abs(grid.ys) - radii)
+                    ogf[0] = hockeystick + 1
+                    ogf[-1] = hockeystick + 1
+                    radii_power = radii**(m+1)
+
+                poly_der = np.empty((n,m+1,poly_y.shape[0]), dtype=object)
+                poly_der[:,0,:] = poly_y.T
+                with Timer("derivative", logger=None):
+                    for i in range(n):
+                        for j in range(m):
+                            poly_der[i,j+1,:-1-j] = ft.arb_poly(poly_der[i,j,:poly_der.shape[2]-j].tolist()).derivative()
+                            poly_der[i,j+1,-1-j:] = 0
+                poly_approx = np.empty((n,n,m+1), dtype=object)
+                with Timer("approximation computation", logger=None): # <--- slow
+                    for i in range(m+1):
+                        with Timer("poly2cheb", logger=None):
+                            tmp = my_poly2cheb(poly_der[:,i,:])
+                        with Timer("idct_eval", logger=None): # <--- very slow with interval arithmetic
+                            poly_approx[:,:,i] = 1 / ft.arb(i).fac() * my_idct_eval(tmp,n)
+                intervals = []
+                with Timer("eval", logger=None):
+                        for i in range(n):
+                            with UpwardRounding():
+                                factor = radii_power * max(poly_y[:,i], key=abs)
+                                bound = np.minimum(ogf, hockeystick) * factor
+                            for j in range(n):
+                                val = ft.arb_poly(poly_approx[i,j].tolist())(ft.arb(0,radii[j]))
+                                ball = ft.arb(0, bound[j])
+                                if 0 in val + ball:
+                                    intervals.append((i,j))
     if direction == 'x':
         vertical = intervals
     else:
         horizontal = intervals
 
+# print(Timer.timers)
 
 # if not args.idct2d:
 #     intervals = sub.isolateIntervals(poly, n, use_clen, use_idct, use_dsc, use_cs)
@@ -174,19 +182,21 @@ for direction in {'x', 'y'}:
 
 # Computation time logging
 
-# Verbose.verboseprint("Logging...")
+Verbose.verboseprint("Logging...")
 # SORT_ORDER = {"change": 0, "conversion": 1, "evaluation": 2, "subdivision": 3}
 # sorted_dict = sorted(Timer.timers.items(), key=lambda x: SORT_ORDER[x[0]])
 
-# time_logger = logging.getLogger("timing")
-# time_logger.setLevel(logging.INFO)
-# handler_format = logging.Formatter('%(message)s')
-# time_handler = logging.FileHandler('subdivision_time.log', 'w')
-# time_handler.setFormatter(handler_format)
-# time_logger.addHandler(time_handler)
+time_logger = logging.getLogger("timing")
+time_logger.setLevel(logging.INFO)
+handler_format = logging.Formatter('%(message)s')
+time_handler = logging.FileHandler('subdivision_time.log', 'w')
+time_handler.setFormatter(handler_format)
+time_logger.addHandler(time_handler)
 
-# for key, value in sorted_dict:
+# for key, value in Timer.timers.items(): #sorted_dict:
 #     time_logger.info(f"{key}\t{value}")
+time_logger.info(f"partial_eval\t{Timer.timers['partial evaluation']}")
+time_logger.info(f"second_step\t{Timer.timers['second step']}")
 
 # Show isolated intervals
 
@@ -197,68 +207,69 @@ from matplotlib.patches import Rectangle
 
 fig1 = plt.figure(dpi=600)
 
-if not args.taylor:
-    # base = os.path.basename(poly)
-    # eval_method = "clenshaw" * use_clen + "idct" * use_idct + "horner" * (1 - max(use_clen, use_idct))
-    # isol_method = "interval" * (1 - max(use_dsc, use_cs)) + "dsc" * use_dsc + "gm" * use_cs
-    # fig1.canvas.set_window_title(f"{os.path.splitext(base)[0]}: n={n - 1}, " + eval_method + ", " + isol_method)
+if not args.hide:
+    if not args.taylor:
+        # base = os.path.basename(poly)
+        # eval_method = "clenshaw" * use_clen + "idct" * use_idct + "horner" * (1 - max(use_clen, use_idct))
+        # isol_method = "interval" * (1 - max(use_dsc, use_cs)) + "dsc" * use_dsc + "gm" * use_cs
+        # fig1.canvas.set_window_title(f"{os.path.splitext(base)[0]}: n={n - 1}, " + eval_method + ", " + isol_method)
 
-    ax1 = fig1.add_subplot(111, aspect='equal')
-    ax1.tick_params(axis='both', which='minor', labelsize=10)
+        ax1 = fig1.add_subplot(111, aspect='equal')
+        ax1.tick_params(axis='both', which='minor', labelsize=10)
 
-    segments = []
-    colors = []
-    rects = []
-    extended_xs = np.empty(n+2)
-    extended_xs[:n] = grid.xs
-    extended_xs[n] = -1
-    extended_xs[-1] = 1
-    for i in range(n):
-        for e in Visualization.merge(vertical[i]):
-            segments.append([(grid.xs[i], grid.ys[e[0]]), (grid.xs[i], grid.ys[e[1]])])
-            colors.append((not e[2], 0, 0, 1))
-            rects.append(Rectangle((extended_xs[i+1], grid.ys[e[1]]),extended_xs[i-1] - extended_xs[i+1], grid.ys[e[0]] - grid.ys[e[1]]))
-        for e in Visualization.merge(horizontal[i]):
-            segments.append([(grid.ys[e[0]], grid.xs[i]), (grid.ys[e[1]], grid.xs[i])])
-            colors.append((not e[2], 0, 0, 1))
-            rects.append(Rectangle((grid.ys[e[1]], extended_xs[i+1]), grid.ys[e[0]] - grid.ys[e[1]], extended_xs[i-1] - extended_xs[i+1]))
+        segments = []
+        colors = []
+        rects = []
+        extended_xs = np.empty(n+2)
+        extended_xs[:n] = grid.xs
+        extended_xs[n] = -1
+        extended_xs[-1] = 1
+        for i in range(n):
+            for e in Visualization.merge(vertical[i]):
+                segments.append([(grid.xs[i], grid.ys[e[0]]), (grid.xs[i], grid.ys[e[1]])])
+                colors.append((not e[2], 0, 0, 1))
+                rects.append(Rectangle((extended_xs[i+1], grid.ys[e[1]]),extended_xs[i-1] - extended_xs[i+1], grid.ys[e[0]] - grid.ys[e[1]]))
+            for e in Visualization.merge(horizontal[i]):
+                segments.append([(grid.ys[e[0]], grid.xs[i]), (grid.ys[e[1]], grid.xs[i])])
+                colors.append((not e[2], 0, 0, 1))
+                rects.append(Rectangle((grid.ys[e[1]], extended_xs[i+1]), grid.ys[e[0]] - grid.ys[e[1]], extended_xs[i-1] - extended_xs[i+1]))
 
-    lc = mc.LineCollection(segments, colors=colors, linewidths=0.1)
-    pc = mc.PatchCollection(rects, alpha=1)
-    ax1.add_collection(lc)
-    ax1.add_collection(pc)
-    plt.xlim(grid.x_min, grid.x_max)
-    plt.ylim(grid.y_min, grid.y_max)
-else:
-    ax1 = fig1.add_subplot(111, aspect='equal')
-    ax1.tick_params(axis='both', which='minor', labelsize=10)
+        lc = mc.LineCollection(segments, colors=colors, linewidths=0.1)
+        pc = mc.PatchCollection(rects, alpha=1)
+        ax1.add_collection(lc)
+        ax1.add_collection(pc)
+        plt.xlim(grid.x_min, grid.x_max)
+        plt.ylim(grid.y_min, grid.y_max)
+    else:
+        ax1 = fig1.add_subplot(111, aspect='equal')
+        ax1.tick_params(axis='both', which='minor', labelsize=10)
 
-    interval_lut = [(grid.ys[i+1] + grid.ys[i]) / 2 for i in range(n-1)]
-    interval_lut.insert(0, 1)
-    interval_lut.append(-1)
-    edges = []
-    colors = []
-    rects = []
-    for e in vertical:
-        edges.append([(grid.xs[e[0]], interval_lut[e[1]]), (grid.xs[e[0]], interval_lut[e[1]+1])])
-        colors.append((0,0,0,1))
-        rects.append(Rectangle((interval_lut[e[0]], interval_lut[e[1]]), interval_lut[e[0]+1] - interval_lut[e[0]], interval_lut[e[1]+1] - interval_lut[e[1]]))
-    
-    interval_lut = [(grid.xs[i+1] + grid.xs[i]) / 2 for i in range(n-1)]
-    interval_lut.insert(0, 1)
-    interval_lut.append(-1)
-    for e in horizontal:
-        edges.append([(interval_lut[e[1]], grid.ys[e[0]]), (interval_lut[e[1]+1], grid.ys[e[0]])])
-        colors.append((0,0,0,1))
-        rects.append(Rectangle((interval_lut[e[1]], interval_lut[e[0]]), interval_lut[e[1]+1] - interval_lut[e[1]], interval_lut[e[0]+1] - interval_lut[e[0]]))
+        interval_lut = [(grid.ys[i+1] + grid.ys[i]) / 2 for i in range(n-1)]
+        interval_lut.insert(0, 1)
+        interval_lut.append(-1)
+        edges = []
+        colors = []
+        rects = []
+        for e in vertical:
+            edges.append([(grid.xs[e[0]], interval_lut[e[1]]), (grid.xs[e[0]], interval_lut[e[1]+1])])
+            colors.append((0,0,0,1))
+            rects.append(Rectangle((interval_lut[e[0]], interval_lut[e[1]]), interval_lut[e[0]+1] - interval_lut[e[0]], interval_lut[e[1]+1] - interval_lut[e[1]]))
+        
+        interval_lut = [(grid.xs[i+1] + grid.xs[i]) / 2 for i in range(n-1)]
+        interval_lut.insert(0, 1)
+        interval_lut.append(-1)
+        for e in horizontal:
+            edges.append([(interval_lut[e[1]], grid.ys[e[0]]), (interval_lut[e[1]+1], grid.ys[e[0]])])
+            colors.append((0,0,0,1))
+            rects.append(Rectangle((interval_lut[e[1]], interval_lut[e[0]]), interval_lut[e[1]+1] - interval_lut[e[1]], interval_lut[e[0]+1] - interval_lut[e[0]]))
 
-    lc = mc.LineCollection(edges, colors=colors, linewidths=0.1)
-    pc = mc.PatchCollection(rects)
-    ax1.add_collection(lc)
-    ax1.add_collection(pc)
-    plt.xlim(-1, 1)
-    plt.ylim(-1, 1)
+        lc = mc.LineCollection(edges, colors=colors, linewidths=0.1)
+        pc = mc.PatchCollection(rects)
+        ax1.add_collection(lc)
+        ax1.add_collection(pc)
+        plt.xlim(-1, 1)
+        plt.ylim(-1, 1)
 
-Verbose.verboseprint("Done.")
-plt.draw()
-plt.show(block=True)
+    Verbose.verboseprint("Done.")
+    plt.draw()
+    plt.show(block=True)

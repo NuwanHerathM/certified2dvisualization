@@ -1,4 +1,5 @@
-from __future__ import print_function
+# distutils: language=c++
+from __future__ import print_function, with_statement
 from re import T
 import numpy as np
 from math import cos, log, pi, floor, sqrt, log2
@@ -239,6 +240,9 @@ def altered_dct(poly, n=None):
         n = poly.shape[-1]
     return scipy.fft.dct(poly, n=n) / 2
 
+from codetiming import Timer
+root_dict = {}
+halfroot_dict = {}
 def interval_idct(poly, n=None):
     """
     Interval arithmetic fast IDCT.
@@ -261,20 +265,40 @@ def interval_idct(poly, n=None):
     X[:len(poly)] = poly # zero padding
     V = np.zeros(n, dtype=object)
     N = ft.acb(n)
-    for i in range(n):
-        w = ft.acb.exp_pi_i(ft.acb(i) / (2 * N))
-        V[i] = w / 2 * ft.acb(X[i], -X[n-i])
+    if n in root_dict:
+        w = root_dict[n]
+    else:
+        with Timer("w", logger=None):
+            w = np.empty(n, dtype=object)
+            for i in range(n):
+                w[i] = ft.acb.exp_pi_i(ft.acb(i) / (2 * N))
+        root_dict[n] = w
+    with Timer("V", logger=None):
+        V = w / 2 * (X[:-1] - ft.acb(0,1) * X[-1:0:-1])
     if n % 2 == 1:
         v = ft.acb.dft(V, True)
         for i in range(n):
             v[i] = v[i].real
     else:
-        T = np.empty(int(n/2) + 1, dtype=object)
-        for i in range(floor(n/4)+1):
-            V_i_conj = ft_acb_conj(V[int(n/2)-i])
-            T[i] = 1 / 2 * ((V[i]+V_i_conj) + ft.acb(0,1) * ft.acb.exp_pi_i(2 * ft.acb(i) / N) * (V[i]-V_i_conj))
-            T_i_tmp = 1 / 2 * ((V[i]+V_i_conj) - ft.acb(0,1) * ft.acb.exp_pi_i(2 * ft.acb(i) / N) * (V[i]-V_i_conj))
-            T[int(n/2)-i] = ft_acb_conj(T_i_tmp)
+        with Timer("T", logger=None):
+            T = np.empty(int(n/2) + 1, dtype=object)
+            V_conj = np.empty(floor(n/4)+1, dtype=object)
+            for i in range(floor(n/4)+1):
+                V_conj[i] = ft_acb_conj(V[int(n/2)-i])
+            if n in halfroot_dict:
+                half_w = halfroot_dict[n]
+            else:
+                half_w = np.empty(floor(n/4)+1, dtype=object)
+                for i in range(floor(n/4)+1):
+                    half_w[i] = ft.acb.exp_pi_i(2 * ft.acb(i) / N)
+                halfroot_dict[n] = half_w
+            V_sum = V[:floor(n/4)+1] + V_conj
+            V_diff = V[:floor(n/4)+1] - V_conj
+            V_diff_prod = ft.acb(0,1) * half_w * V_diff
+            T[:floor(n/4)+1] = 1 / 2 * (V_sum + V_diff_prod)
+            T_tmp = 1 / 2 * (V_sum - V_diff_prod)
+            for i in range(floor(n/4)+1):
+                T[int(n/2)-i] = ft_acb_conj(T_tmp[i])
         t = ft.acb.dft(T[:-1], True)
         v = np.empty(n, dtype=object)
         for i in range(int(n/2)):
@@ -286,6 +310,7 @@ def interval_idct(poly, n=None):
 
     return x * n
 
+neghalfroot_dict = {}
 def interval_dct(poly, n=None):
     """
     Interval arithmetic fast DCT.
@@ -313,20 +338,33 @@ def interval_dct(poly, n=None):
     if n % 2 == 1:
         V = ft.acb.dft(v)
     else:
-        t = np.empty(int(n/2), dtype=object)
-        for i in range(int(n/2)):
-            t[i] = ft.acb(v[2*i],v[2*i+1])
-        T = ft.acb.dft(t)
-        V = np.empty(n, dtype=object)
-        V[0] = T[0].real + T[0].imag
-        V[int(n/2)] = T[0].real - T[0].imag
-        for i in range(1,floor(n/4)+1):
-            T_i_conj = ft_acb_conj(T[int(n/2)-i])
-            V[i] = 1 /2 * ((T[i]+ T_i_conj) - ft.acb(0,1) * ft.acb.exp_pi_i(-2*ft.acb(i) / N) * (T[i] - T_i_conj))
-            V_i_tmp = 1 /2 * ((T[i]+ T_i_conj) + ft.acb(0,1) * ft.acb.exp_pi_i(-2*ft.acb(i) / N) * (T[i] - T_i_conj))
-            V[int(n/2)-i] = ft_acb_conj(V_i_tmp)
-        for i in range(1,int(n/2)):
-            V[n-i] = ft_acb_conj(V[i])
+        with Timer("TT", logger=None):
+            t = np.empty(int(n/2), dtype=object)
+            for i in range(int(n/2)):
+                t[i] = ft.acb(v[2*i],v[2*i+1])
+            T = ft.acb.dft(t)
+            V = np.empty(n, dtype=object)
+            V[0] = T[0].real + T[0].imag
+            V[int(n/2)] = T[0].real - T[0].imag
+            T_conj = np.empty(floor(n/4), dtype=object)
+            for i in range(1,floor(n/4)+1):
+                T_conj[i-1] = ft_acb_conj(T[int(n/2)-i])
+            if n in halfroot_dict:
+                neghalf_w = neghalfroot_dict[n]
+            else:
+                neghalf_w = np.empty(floor(n/4), dtype=object)
+                for i in range(floor(n/4)):
+                    neghalf_w[i] = ft.acb.exp_pi_i(-2 * ft.acb(i+1) / N)
+                neghalfroot_dict[n] = neghalf_w
+            T_sum = T[1:floor(n/4)+1] + T_conj
+            T_diff = T[1:floor(n/4)+1] - T_conj
+            T_diff_prod = ft.acb(0,1) * neghalf_w * T_diff
+            V[1:floor(n/4)+1] = 1 / 2 * (T_sum - T_diff_prod)
+            V_tmp = 1 / 2 * (T_sum + T_diff_prod)
+            for i in range(1,floor(n/4)+1):
+                V[int(n/2)-i] = ft_acb_conj(V_tmp[i-1])
+            for i in range(1,int(n/2)):
+                V[n-i] = ft_acb_conj(V[i])
     X = np.empty(n+1, dtype=object)
     for i in range(floor(n/2)+1):
         V[i] *= 2 * ft.acb.exp_pi_i(-ft.acb(i) / (2 * N))
