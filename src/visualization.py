@@ -8,7 +8,7 @@ from verbosity import Verbose
 class Visualization:
 
     @staticmethod
-    def merge(intervals):
+    def merge_intervals(intervals):
         """Return the union of the intervals."""
 
         iterator = iter(intervals)
@@ -29,6 +29,28 @@ class Visualization:
                         res.append(last)
                     last = item
         return res
+    
+    @staticmethod
+    def merge_nodes(nodes):
+
+        iterator = iter(nodes)
+        res = []
+        last = (-1, -1)
+        while True:
+            try:
+                item = next(iterator)
+            except StopIteration:
+                if last[1] != -1:
+                    res.append(last)
+                break
+            else:
+                if last[0] + last[1] + 1 == item:
+                    last = (last[0], last[1] + 1)
+                else:
+                    if last[1] != -1:
+                        res.append(last)
+                    last = (item, 0)
+        return res
 
     @staticmethod
     def show(vertical, horizontal, poly, default_file, use_clen, use_idct, use_dsc, use_cs, hide, save, freq, time_distibution, n, grid, idct2d):
@@ -46,10 +68,10 @@ class Visualization:
             segments = []
             colors = []
             for i in range(n):
-                for e in Visualization.merge(vertical[i]):
+                for e in Visualization.merge_intervals(vertical[i]):
                     segments.append([(grid.xs[i], grid.ys[e[0]]), (grid.xs[i], grid.ys[e[1]])])
                     colors.append((not e[2], 0, 0, 1))
-                for e in Visualization.merge(horizontal[i]):
+                for e in Visualization.merge_intervals(horizontal[i]):
                     segments.append([(grid.ys[e[0]], grid.xs[i]), (grid.ys[e[1]], grid.xs[i])])
                     colors.append((not e[2], 0, 0, 1))
 
