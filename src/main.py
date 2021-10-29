@@ -25,8 +25,8 @@ default_file = os.path.join(dirname, '../polys/circle.poly')
 parser = argparse.ArgumentParser()
 parser.add_argument('n', type=int, help="size of the grid (number of points or number of subdivision intervals - 1)")
 parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
-parser.add_argument('-x', nargs=2, type=int, default=[-8,8], help="bounds on the x-axis")
-parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the y-axis")
+# parser.add_argument('-x', nargs=2, type=int, default=[-8,8], help="bounds on the x-axis")
+# parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the y-axis")
 group_eval = parser.add_mutually_exclusive_group()
 # group_eval.add_argument('-clen', help="use the Chebyshev basis and Clenshaw's scheme", action="store_true")
 # group_eval.add_argument('-idct', help="use the Chebyshev basis and the IDCT", action="store_true")
@@ -75,7 +75,8 @@ assert deg_x <= n or deg_y <= n, "Not enough points with respect to the degree o
 # if use_idct2d:
 #     assert args.x==[-1,1] and args.y==[-1,1], "The 2D IDCT works only on [-1,1]*[-1,1] for now..."
 
-grid = Grid(n, args.x[0], args.x[1], args.y[0], args.y[1])
+# grid = Grid(n, args.x[0], args.x[1], args.y[0], args.y[1])
+grid = Grid(n, -1, 1, -1, 1)
 # if use_idct:
 #     grid.computeXsYsForIDCT(deg_x, 'nodes', 'linear')
 # elif use_idct2d:
@@ -99,82 +100,79 @@ for direction in {'x', 'y'}:
     else:
         Verbose.verboseprint("Evaluation along horizontal fibers...")
         poly = input.T
-    if False:
-        sub = Subdivision(grid, deg_x, deg_y, args.poly, args.der)
-    else:
-        sub = None
-        Verbose.verboseprint("\tPartial evaluation...")
-        with Timer("partial evaluation", logger=None):
-            if args.error:
-                # error tracking
-                my_poly2cheb = error_polys2cheb_dct
-                my_idct_eval = error_idct_eval
-            else:
-                # interval arithmetic
-                my_poly2cheb = interval_polys2cheb_dct
-                my_idct_eval = loop_interval_idct_eval
-            cheb = my_poly2cheb(poly.T)
-            poly_y = my_idct_eval(cheb,n)
-            import flint as ft
-            intervals = np.empty(n, dtype="object")
-        with Timer("second step", logger=None):
-            if not args.taylor:
-                Verbose.verboseprint("\tSubdivision...")
-                grid.computeXsYsForIDCT(deg_x, 'nodes', 'linear')
+    sub = None
+    Verbose.verboseprint("\tPartial evaluation...")
+    with Timer("partial evaluation", logger=None):
+        if args.error:
+            # error tracking
+            my_poly2cheb = error_polys2cheb_dct
+            my_idct_eval = error_idct_eval
+        else:
+            # interval arithmetic
+            my_poly2cheb = interval_polys2cheb_dct
+            my_idct_eval = loop_interval_idct_eval
+        cheb = my_poly2cheb(poly.T)
+        poly_y = my_idct_eval(cheb,n)
+        import flint as ft
+        intervals = np.empty(n, dtype="object")
+    with Timer("second step", logger=None):
+        if not args.taylor:
+            Verbose.verboseprint("\tSubdivision...")
+            grid.computeXsYsForIDCT(deg_x, 'nodes', 'nodes')
+            for i in range(n):
+                p = ft.arb_poly(poly_y[:,i].tolist())
+                intervals[i] = subdivide(grid.ys, p)
+        else:
+            Verbose.verboseprint("\tLocal approximation...")
+            grid.computeXsYsForIDCT(max(deg_x, deg_y), 'nodes', 'nodes')
+            m = args.m
+            p_der = np.zeros((m+1,n))
+            radii = np.empty(n)
+            with UpwardRounding():
                 for i in range(n):
-                    p = ft.arb_poly(poly_y[:,i].tolist())
-                    intervals[i] = subdivide(grid.ys, p)
-            else:
-                Verbose.verboseprint("\tLocal approximation...")
-                grid.computeXsYsForIDCT(max(deg_x, deg_y), 'nodes', 'nodes')
-                m = args.m
-                p_der = np.zeros((m+1,n))
-                radii = np.empty(n)
-                with UpwardRounding():
-                    for i in range(n):
-                        r_left = -(grid.ys[i] - grid.ys[i-1]) / 2 if 0 < i else 0
-                        r_right = -(grid.ys[i+1] - grid.ys[i]) / 2 if i < n - 1 else 0
-                        radii[i] = max(r_left, r_right)
+                    r_left = -(grid.ys[i] - grid.ys[i-1]) / 2 if 0 < i else 0
+                    r_right = -(grid.ys[i+1] - grid.ys[i]) / 2 if i < n - 1 else 0
+                    radii[i] = max(r_left, r_right)
 
-                    hockeystick = comb(deg_x+1, m+2)
-                    ogf = 1 / (1 - np.abs(grid.ys) - radii)
-                    ogf[0] = hockeystick + 1
-                    ogf[-1] = hockeystick + 1
-                    radii_power = radii**(m+1)
+                hockeystick = comb(deg_x+1, m+2)
+                ogf = 1 / (1 - np.abs(grid.ys) - radii)
+                ogf[0] = hockeystick + 1
+                ogf[-1] = hockeystick + 1
+                radii_power = radii**(m+1)
 
-                poly_der = np.empty((n,m+1,poly_y.shape[0]), dtype=object)
-                poly_der[:,0,:] = poly_y.T
-                with Timer("derivative", logger=None):
-                    for i in range(n):
-                        for j in range(m):
-                            tmp = ft.arb_poly(poly_der[i,j,:poly_der.shape[2]-j].tolist()).derivative()
-                            poly_der[i,j+1,:len(tmp)] = tmp
-                            poly_der[i,j+1,len(tmp):] = 0
-                poly_approx = np.empty((n,n,m+1), dtype=object)
-                with Timer("approximation computation", logger=None): # <--- slow
-                    for i in range(m+1):
-                        with Timer("poly2cheb", logger=None):
-                            tmp = my_poly2cheb(poly_der[:,i,:])
-                        with Timer("idct_eval", logger=None): # <--- very slow with interval arithmetic
-                            poly_approx[:,:,i] = 1 / ft.arb(i).fac() * my_idct_eval(tmp,n)
-                # intervals = []
-                with Timer("eval", logger=None):
-                    for i in range(n):
-                        intervals[i] = []
-                        with UpwardRounding():
-                            factor = radii_power * max(poly_y[:,i], key=abs)
-                            bound = np.minimum(ogf, hockeystick) * factor
-                        for j in range(n):
-                            val = ft.arb_poly(poly_approx[i,j].tolist())(ft.arb(0,radii[j]))
-                            ball = ft.arb(0, bound[j])
-                            if 0 in val + ball:
-                                intervals[i].append(j)
+            poly_der = np.empty((n,m+1,poly_y.shape[0]), dtype=object)
+            poly_der[:,0,:] = poly_y.T
+            with Timer("derivative", logger=None):
+                for i in range(n):
+                    for j in range(m):
+                        tmp = ft.arb_poly(poly_der[i,j,:poly_der.shape[2]-j].tolist()).derivative()
+                        poly_der[i,j+1,:len(tmp)] = tmp
+                        poly_der[i,j+1,len(tmp):] = 0
+            poly_approx = np.empty((n,n,m+1), dtype=object)
+            with Timer("approximation computation", logger=None): # <--- slow
+                for i in range(m+1):
+                    with Timer("poly2cheb", logger=None):
+                        tmp = my_poly2cheb(poly_der[:,i,:])
+                    with Timer("idct_eval", logger=None): # <--- very slow with interval arithmetic
+                        poly_approx[:,:,i] = 1 / ft.arb(i).fac() * my_idct_eval(tmp,n)
+            # intervals = []
+            with Timer("eval", logger=None):
+                for i in range(n):
+                    intervals[i] = []
+                    with UpwardRounding():
+                        factor = radii_power * max(poly_y[:,i], key=abs)
+                        bound = np.minimum(ogf, hockeystick) * factor
+                    for j in range(n):
+                        val = ft.arb_poly(poly_approx[i,j].tolist())(ft.arb(0,radii[j]))
+                        ball = ft.arb(0, bound[j])
+                        if 0 in val + ball:
+                            intervals[i].append(j)
     if direction == 'x':
         vertical = intervals
     else:
         horizontal = intervals
 
-# print(Timer.timers)
+# print(Timer.timers["partial evaluation"] + Timer.timers["second step"])
 
 # if not args.idct2d:
 #     intervals = sub.isolateIntervals(poly, n, use_clen, use_idct, use_dsc, use_cs)
@@ -213,7 +211,7 @@ filename = os.path.splitext(base)[0]
 weight = "kac" * (1 - max(args.elliptic, args.flat)) + "elliptic" * args.elliptic + "flat" * args.flat
 method = "sub" * (1 - args.taylor) + "taylor" * args.taylor
 error = "intvl" * (1 - args.error) + "error" * args.error
-fig1.canvas.set_window_title(f"{filename}: n={n}, " + weight + ", " + method + ", " + error)
+fig1.canvas.manager.set_window_title(f"{filename}: n={n}, " + weight + ", " + method + ", " + error)
 
 if not args.taylor:
 
@@ -277,12 +275,14 @@ else:
 
 if args.save:
     outpath_png = f"../output/{filename}_{n}_{weight}_{method}_{error}.png"
-    outpath_pdf = f"../output/{filename}_{n}_{weight}_{method}_{error}.pdf"
     plt.savefig(outpath_png, bbox_inches='tight')
-    plt.savefig(outpath_pdf, bbox_inches='tight', dpi=1200)
-    Verbose.verboseprint("Figure saved at the following locations:\n\t" + outpath_png + "\n\t" + outpath_pdf)
+    # outpath_pdf = f"../output/{filename}_{n}_{weight}_{method}_{error}.pdf"
+    # plt.savefig(outpath_pdf, bbox_inches='tight', dpi=1200)
+    Verbose.verboseprint("Figure saved at the following locations:\n\t" + outpath_png) # + "\n\t" + outpath_pdf)
 
 if not args.hide:
     Verbose.verboseprint("Done.")
     plt.draw()
     plt.show(block=True)
+    # plt.pause(0.0001)
+    # plt.close()
