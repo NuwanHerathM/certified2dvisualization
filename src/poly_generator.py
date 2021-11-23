@@ -12,7 +12,7 @@ parser.add_argument('m', type=int, help="degree on y")
 args = parser.parse_args()
 
 # if the coeffient distribution is centered on zero there are some properties
-matrix = np.random.randint(0, 101, (args.m, args.n))
+matrix = np.random.randint(-100, 101, (args.m, args.n))
 print(matrix)
 
 outfile = os.path.join(args.dir, args.filename)

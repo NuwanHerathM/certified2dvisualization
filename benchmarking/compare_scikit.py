@@ -1,6 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import sys
+# insert at 1, 0 is the script path (or '' in REPL)
+sys.path.insert(1, '../src')
+from utils import comb2D
+
 from skimage import measure
 
 import argparse
@@ -16,6 +21,7 @@ n= args.n
 x = np.tile(np.linspace(-1,1,n),(n,1))
 y = np.tile(np.linspace(1,-1,n),(n,1)).T
 c = np.loadtxt(args.poly, dtype=int)
+# c = np.multiply(c, np.sqrt(comb2D(49 + 1, 49 + 1))) % 
 r = np.polynomial.polynomial.polyval2d(x,y,c)
 
 # Find contours

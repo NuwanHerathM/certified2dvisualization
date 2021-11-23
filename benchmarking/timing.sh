@@ -3,8 +3,8 @@
 # Variable setting
 
 listFile="random.poly random_50.poly random_100.poly"
-listResol=(32 64 128 256 512 1024 2048)
-listPower=(5 6 7 8 9 10 11)
+listResol=(128 256 512 1024 2048)
+listPower=(7 8 9 10 11)
 
 if [[ $USER == "nherathm " ]]
 then
@@ -30,14 +30,14 @@ head+="\n"
 for file in $listFile
 do
     src="../polys/$file"
-    limit=7
+    limit=1800
     previous_exceeds_time_limit=false
     outfile=output/${file%.*}.tsv
     rm -f $outfile
     echo -ne $head > $outfile
 
     # Julia
-    echo -ne "ImplicitEquations" >> $outfile
+    echo -ne "Julia" >> $outfile
     for power in ${listPower[@]}
     do
         echo -ne "\t" >> $outfile
