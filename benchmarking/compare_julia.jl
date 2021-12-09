@@ -24,7 +24,7 @@ mat = DelimitedFiles.readdlm(parsed_args["poly"])
 g(x,y) = sum(x^i * sum(y^j * mat[i+1,j+1] for j in 0:n-1) for i in 0:m-1)
 
 # Computation of the plot
-p = plot(g ⩵ 0, xlim=(-1,1), ylim=(-1,1), N=parsed_args["N"], M=parsed_args["N"], aspect_ratio=:equal) 
+p = plot(g ⩵ 0, xlim=(-1,1), ylim=(-1,1), N=parsed_args["N"], M=parsed_args["N"], aspect_ratio=:equal, size=(5000,5000), red=:red) 
 
 # Saving
 savefig(p,"image.png")

@@ -130,15 +130,28 @@ def error_polys2cheb_dct(polys):
         polys.shape = (1, len(polys))
     (n, d) = polys.shape
     nodes_power = np.empty((d, d), dtype=object)
-    D = ft.acb(d)
-    nodes = np.array([ft.acb.cos_pi((2 * ft.acb(i) + 1) / (2 * D)).real for i in range(d)])
+    # D = ft.acb(d)
+    # nodes = np.array([ft.acb.cos_pi((2 * ft.acb(i) + 1) / (2 * D)).real for i in range(d)])
+    D = ft.arb(d)
+    nodes = ft.arb_mat([[ft.arb.cos_pi((2 * ft.arb(i) + 1) / (2 * D))] for i in range(d)])
     for i in range(d):
         for j in range(d):
-            nodes_power[j,i] = nodes[i]**j
-    node_eval = polys @ nodes_power
+            nodes_power[j,i] = nodes[i,0]**j
+    # node_eval = polys @ nodes_power
+    arb_polys = ft.arb_mat(polys.tolist())
+    arb_nodes_power = ft.arb_mat(nodes_power.tolist())
+    node_eval = arb_polys * arb_nodes_power
+    # print(arb_polys)
+    # print(arb_nodes_power)
+    # print(len(node_eval))
     dct_eval = np.empty((n, d), dtype=object)
+    node_table = node_eval.table()
     for i in range(n):
-        dct_eval[i] = error_dct(node_eval[i])
+        tmp = np.empty(d, dtype=object)
+        for j in range(d):
+            tmp[j] = node_eval[i,j]
+        dct_eval[i] = error_dct(tmp)
+        # dct_eval[i] = error_dct(node_eval[i])
 
     dct_eval /= d
     dct_eval[:,0] /= 2
