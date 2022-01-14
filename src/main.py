@@ -1,9 +1,7 @@
 import argparse
 import os
-from matplotlib import patches
 
 import numpy as np
-from subdivision import Subdivision
 from visualization import Visualization
 from grid import Grid
 
@@ -12,7 +10,7 @@ from codetiming import Timer
 import logging
 
 from verbosity import Verbose
-from utils import UpwardRounding, comb2D, factorial2D, loop_interval_idct_eval, interval_polys2cheb_dct, interval_idct, error_polys2cheb_dct, error_idct_eval, subdivide
+from utils import UpwardRounding, loop_interval_idct_eval, interval_polys2cheb_dct, error_polys2cheb_dct, error_idct_eval, subdivide
 from scipy.special import comb
 
 # Parse the input
@@ -23,22 +21,10 @@ default_file = os.path.join(dirname, '../polys/unit_circle.poly')
 parser = argparse.ArgumentParser()
 parser.add_argument('n', type=int, help="size of the grid (number of points or number of subdivision intervals - 1)")
 parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
-# parser.add_argument('-x', nargs=2, type=int, default=[-8,8], help="bounds on the x-axis")
-# parser.add_argument('-y', nargs=2, type=int, default=[-8,8], help="bounds on the y-axis")
 parser.add_argument('-hide', help="hide the plot", action="store_true")
-# parser.add_argument('-freq', help="show the subdivision time distribution", action="store_true")
 parser.add_argument('-save', help="save the plot in the output directory", action="store_true")
 parser.add_argument('-noaxis', help="hide the axes", action="store_true")
-# parser.add_argument('-der', help="use the derivative as a subdivision termination criterion", action="store_true")
-# group_sub = parser.add_mutually_exclusive_group()
-# group_sub.add_argument('-dsc', help="use Descartes's rule for the subdivision", action="store_true")
-# group_sub.add_argument('-cs', help="use GM's clenshaw for the isolation", action="store_true")
 parser.add_argument('-v', '--verbose', help="turn on the verbosity", action="store_true")
-# parser.add_argument('-idct2d', help="use the 2D IDCT", action="store_true")
-# group_method = parser.add_mutually_exclusive_group()
-# group_method.add_argument('-kac', help="use kac coefficients for the polynomial", action="store_true")
-# group_method.add_argument('-elliptic', help="use elliptic coefficients for the polynomial", action="store_true")
-# parser.add_argument('-flat', help="use elliptic coefficients for the polynomial", action="store_true")
 parser.add_argument('-error', help="computation carrying the error bounds", action="store_true")
 parser.add_argument('-taylor', help="taylor approximation on fibers", action="store_true")
 parser.add_argument('-m', type=int, default=3, help="precision of the approximation")
@@ -46,11 +32,6 @@ parser.add_argument('-m', type=int, default=3, help="precision of the approximat
 args = parser.parse_args()
 
 n = args.n # number of points
-# use_clen = args.clen
-# use_idct = args.idct
-# use_dsc = args.dsc
-# use_cs = args.cs
-# use_idct2d = args.idct2d
 
 # Set function for verbosity
 Verbose.classInit(args.verbose)
@@ -70,12 +51,6 @@ assert deg <= n, "Not enough points with respect to the degree of the polynomial
 
 # grid = Grid(n, args.x[0], args.x[1], args.y[0], args.y[1])
 grid = Grid(n, -1, 1, -1, 1)
-# if use_idct:
-#     grid.computeXsYsForIDCT(deg_x, 'nodes', 'linear')
-# elif use_idct2d:
-#     grid.computeXsYsForIDCT(max(deg_x, deg_y), 'nodes', 'nodes')
-# else:
-#     grid.computeXsYs()
 
 input = np.loadtxt(args.poly, dtype=float)
 
@@ -143,7 +118,6 @@ for direction in {'x', 'y'}:
                         tmp = my_poly2cheb(poly_der[:,i,:])
                     with Timer("idct_eval", logger=None): # <--- very slow with interval arithmetic
                         poly_approx[:,:,i] = 1 / ft.arb(i).fac() * my_idct_eval(tmp,n)
-            # intervals = []
             with Timer("eval", logger=None):
                 for i in range(n):
                     intervals[i] = []
@@ -197,7 +171,6 @@ fig1 = plt.figure()
 # fig1 = plt.figure(frameon=False)
 base = os.path.basename(args.poly)
 filename = os.path.splitext(base)[0]
-# weight = "kac" * (1 - max(args.elliptic, args.flat)) + "elliptic" * args.elliptic + "flat" * args.flat
 method = "sub" * (1 - args.taylor) + "taylor" * args.taylor
 error = "intvl" * (1 - args.error) + "error" * args.error
 fig1.canvas.manager.set_window_title(f"{filename}: n={n}, " + ", " + method + ", " + error)
@@ -271,5 +244,3 @@ if not args.hide:
     Verbose.verboseprint("Done.")
     plt.draw()
     plt.show(block=True)
-    # plt.pause(0.0001)
-    # plt.close()
