@@ -28,6 +28,7 @@ parser.add_argument('-poly', type=str, default=default_file, help="file of polyn
 parser.add_argument('-hide', help="hide the plot", action="store_true")
 # parser.add_argument('-freq', help="show the subdivision time distribution", action="store_true")
 parser.add_argument('-save', help="save the plot in the output directory", action="store_true")
+parser.add_argument('-noaxis', help="hide the axes", action="store_true")
 # parser.add_argument('-der', help="use the derivative as a subdivision termination criterion", action="store_true")
 # group_sub = parser.add_mutually_exclusive_group()
 # group_sub.add_argument('-dsc', help="use Descartes's rule for the subdivision", action="store_true")
@@ -201,12 +202,12 @@ method = "sub" * (1 - args.taylor) + "taylor" * args.taylor
 error = "intvl" * (1 - args.error) + "error" * args.error
 fig1.canvas.manager.set_window_title(f"{filename}: n={n}, " + ", " + method + ", " + error)
 
+ax1 = fig1.add_subplot(111, aspect='equal')
+ax1.tick_params(axis='both', which='minor', labelsize=10)
+if args.noaxis:
+    ax1.set_axis_off() # hide the axis
+
 if not args.taylor:
-
-    ax1 = fig1.add_subplot(111, aspect='equal')
-    ax1.tick_params(axis='both', which='minor', labelsize=10)
-    # ax1.set_axis_off()
-
     # segments = []
     # colors = []
     rects = []
@@ -231,10 +232,6 @@ if not args.taylor:
     plt.xlim(grid.x_min, grid.x_max)
     plt.ylim(grid.y_min, grid.y_max)
 else:
-    ax1 = fig1.add_subplot(111, aspect='equal')
-    ax1.tick_params(axis='both', which='minor', labelsize=10)
-    # ax1.set_axis_off()
-
     interval_lut = [(grid.ys[i+1] + grid.ys[i]) / 2 for i in range(n-1)]
     interval_lut.insert(0, 1)
     interval_lut.append(-1)
