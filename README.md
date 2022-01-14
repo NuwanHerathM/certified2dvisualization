@@ -1,6 +1,11 @@
 # Fast curve visualization
 
-Visualization of a implicit curve defined by a bivariate polynomial on the square [-1,1] * [-1,1] with a given resolution n.\
+
+Visualization of a implicit curve defined by a bivariate polynomial on the square [-1,1] * [-1,1] with a given resolution n.
+<p align="center">
+  <img src="images/unit_circle_128_sub_intvl.png" width="200">
+</p>
+
 Two methods are implemented:
 - multipoint evaluation + subdivision
 - multipoint evaluation + Taylor approximation
@@ -27,7 +32,7 @@ Rename `test_descartes_os64` as `test_descartes` or use a symbolic link. Add the
 
 Here are some examples of commands to use the code.
 
-### Basis program
+### Basic program
 
 Using the default polynomial (a circle of radius 1):
 
