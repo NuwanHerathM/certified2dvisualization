@@ -1,6 +1,3 @@
-# distutils: language=c++
-from __future__ import print_function, with_statement
-from re import T
 import numpy as np
 from math import cos, log, pi, floor, sqrt, log2
 from scipy.special import comb
@@ -8,12 +5,14 @@ import sys
 import flint as ft
 import scipy.fft
 from interval import fpu
+from dataclasses import dataclass
 
 from inspect import currentframe, getframeinfo
 
 class UpwardRounding:
     """
     Context manager for upward rounding.
+    Force upward floating point rounding (toward infinity if positive and -infinity if negative)
     """
     saved = None
 
@@ -24,6 +23,93 @@ class UpwardRounding:
     def __exit__(self, *args, **kwargs):
         fpu._fesetround(self.saved)
 
+class DownwardRounding:
+    """
+    Context manager for upward rounding.
+    """
+    saved = None
+
+    def __enter__(self):
+        self.saved = fpu._fegetround()
+        fpu._fesetround(fpu._fe_downward)
+    
+    def __exit__(self, *args, **kwargs):
+        fpu._fesetround(self.saved)
+
+@dataclass
+class Pixel:
+    """
+    Representation of a pixel.
+    Defined to be used for Rectangle from matplotlib.patches.
+
+    Attributes
+    ----------
+    i1, i2: int
+           Positions of the left and right boundaries of the pixels on the grid it lies on (could be left/right or right/left)
+    y: double
+            Position of the top or the bottom boundary of the pixel
+    dy: double
+            Distance from y to the facing boundary
+
+        *------------*        ^ 
+        |            |        |
+        |            |        |
+        |            |        | dy
+        |            |        |
+        |            |        |
+        *------------* <-- y  v
+        ^            ^
+        |            |
+    grid.xs[i1]  grid.xs[i2]
+    """
+    __slots__ = ['i1', 'i2', 'j1', 'j2'] # used to make classes faster and use less memory
+    i1: int
+    i2: int
+    j1: int
+    j2: int
+
+    def isblack(self, polys, grid_ys):
+        """
+        Decide if a pixel is black after evaluating the polynomial at its vertices.
+        A pixel is black if there is for sure a change of sign inside that pixel.
+
+        Parameter
+        ----------
+        polys: 2D array
+                Array of polynomials (arrays of coefficients)
+                Polynomials partially evaluated at grid.xs[i]
+
+        Returns
+        -------
+        bplus and bminus: boolean
+                True iff the pixel is black
+        """
+        p = polys[self.i1]
+        q = polys[self.i2]
+        y1 = grid_ys[self.j1]
+        y2 = grid_ys[self.j2]
+        evaluations = (p(y1), p(y2), q(y1), q(y2))
+        bplus = any(eval > 0 for eval in evaluations)
+        bminus = any(eval < 0 for eval in evaluations)
+        return bplus and bminus
+
+def arb_comb(n,k):
+    return ft.arb(n).fac() / (ft.arb(n-k).fac() * ft.arb(k).fac())
+
+def polys2cheb(polys):
+    dim_1 = (polys.ndim == 1) # check if it is a polynomial instead of an array of polynomials
+    if dim_1:
+        polys.shape = (1, len(polys))
+    (n,_) = polys.shape
+    B = np.zeros((n,n), dtype=object)
+    for j in range(0, n, 2):
+        B[0,j] = ft.arb(2)**(-j) * arb_comb(j,j//2)
+    for i in range(1, n):
+        for j in range (i, n, 2):
+            B[i,j] = ft.arb(2)**(1-j) * arb_comb(j,(j-i)//2)
+    
+    return B @ polys.T
+
 def polys2cheb_dct(polys):
     """
     Vectorized polynomial conversion from canonical basis to Chebyshev basis.
@@ -31,12 +117,12 @@ def polys2cheb_dct(polys):
     Parameters
     ----------
     polys: 2D array
-           Array of polynomials (arrays of coefficients)
+            Array of polynomials (arrays of coefficients)
     
     Returns
     -------
     chebs: 2D array
-              Array of polynomials in the Chebyshev basis
+            Array of polynomials in the Chebyshev basis
 
     Notes
     -----
@@ -94,15 +180,17 @@ def interval_polys2cheb_dct(polys):
         polys.shape = (1, len(polys))
     (n, d) = polys.shape
     nodes_power = np.empty((d, d), dtype=object)
-    D = ft.acb(d)
-    nodes = np.array([ft.acb.cos_pi((2 * ft.acb(i) + 1) / (2 * D)).real for i in range(d)])
+    nodes = [ft.arb.cos_pi((2 * ft.arb(i) + 1) / (2 * d)) for i in range(d)]
     for i in range(d):
         for j in range(d):
             nodes_power[j,i] = nodes[i]**j
-    node_eval = polys @ nodes_power
+    ft_polys = ft.arb_mat(polys.tolist())
+    ft_nodes_power = ft.arb_mat(nodes_power.tolist())
+    node_eval = ft_polys * ft_nodes_power
     dct_eval = np.empty((n, d), dtype=object)
+    node_eval_list = node_eval.tolist()
     for i in range(n):
-        dct_eval[i] = interval_dct(node_eval[i])
+        dct_eval[i] = interval_dct(node_eval_list[i])
 
     dct_eval /= d
     dct_eval[:,0] /= 2
@@ -130,28 +218,18 @@ def error_polys2cheb_dct(polys):
         polys.shape = (1, len(polys))
     (n, d) = polys.shape
     nodes_power = np.empty((d, d), dtype=object)
-    # D = ft.acb(d)
-    # nodes = np.array([ft.acb.cos_pi((2 * ft.acb(i) + 1) / (2 * D)).real for i in range(d)])
-    D = ft.arb(d)
-    nodes = ft.arb_mat([[ft.arb.cos_pi((2 * ft.arb(i) + 1) / (2 * D))] for i in range(d)])
+    nodes = [ft.arb.cos_pi((2 * ft.arb(i) + 1) / (2 * d)) for i in range(d)]
     for i in range(d):
         for j in range(d):
-            nodes_power[j,i] = nodes[i,0]**j
-    # node_eval = polys @ nodes_power
-    arb_polys = ft.arb_mat(polys.tolist())
-    arb_nodes_power = ft.arb_mat(nodes_power.tolist())
-    node_eval = arb_polys * arb_nodes_power
-    # print(arb_polys)
-    # print(arb_nodes_power)
-    # print(len(node_eval))
+            nodes_power[j,i] = nodes[i]**j
+    ft_polys = ft.arb_mat(polys.tolist())
+    ft_nodes_power = ft.arb_mat(nodes_power.tolist())
+    node_eval = ft_polys * ft_nodes_power
     dct_eval = np.empty((n, d), dtype=object)
-    node_table = node_eval.table()
-    for i in range(n):
-        tmp = np.empty(d, dtype=object)
-        for j in range(d):
-            tmp[j] = node_eval[i,j]
-        dct_eval[i] = error_dct(tmp)
-        # dct_eval[i] = error_dct(node_eval[i])
+    node_eval_list = node_eval.tolist()
+    # for i in range(n):
+    #     dct_eval[i] = error_dct(np.array(node_eval_list[i]))
+    dct_eval = error_dct(np.array(node_eval_list))
 
     dct_eval /= d
     dct_eval[:,0] /= 2
@@ -419,11 +497,12 @@ def error_dct(polys, n=None):
 
     m = polys.shape[0]
     x_max = np.amax(polys,axis=1)
-    with UpwardRounding(): # force upward floating point rounding (twoward infinity if positive and -infinity if negative)
+    with UpwardRounding(): # force upward floating point rounding (toward infinity if positive and -infinity if negative)
         factor = factor_dct(n)
         res = np.empty((m,n), dtype=object)
         for i in range(m):
-            bound = x_max[i] * factor
+            r = max([e.rad() for e in polys[i]])
+            bound = n * x_max[i] * factor + (m+1) * r
             for j in range(n):
                 res[i,j] = ft.arb(X[i,j], bound)
 
@@ -477,7 +556,8 @@ def error_idct(polys, n=None):
         factor = factor_idct(n)
         res = np.empty((m,n), dtype=object)
         for i in range(m):
-            bound = x_max[i] * factor
+            r = max([e.rad() for e in polys[i]])
+            bound = n * x_max[i] * factor + (m+1) * r
             for j in range(n):
                 res[i,j] = ft.arb(X[i,j], bound)
 
@@ -538,7 +618,8 @@ def subdivide(val, p):
         maxi = val[up]
         mid = int(low + (up - low) / 2)
         median = (mini + maxi) / 2
-        radius = (maxi - mini) / 2
+        with UpwardRounding():
+            radius = (maxi - mini) / 2
 
         ball = ft.arb(median,radius)
         a = p(ball)
