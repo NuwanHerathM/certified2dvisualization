@@ -1,15 +1,12 @@
 # Certified pixel program
-# ====================
+# =======================
 # It uses Taylor approximation followed by subdivision
-# It also colors pixel in red and black
+# It also colors pixel in orange and blue / red and black
 
 import argparse
 import os
-from matplotlib import patches
 
 import numpy as np
-from subdivision import Subdivision
-from visualization import Visualization
 from grid import Grid
 
 from codetiming import Timer
@@ -22,24 +19,28 @@ from scipy.special import comb
 import flint as ft
 
 # Parse the input
+
 np.seterr(all='raise')
 dirname = os.path.dirname(__file__)
 default_file = os.path.join(dirname, '../polys/unit_circle.poly')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('n', type=int, help="size of the grid (number of points or number of subdivision intervals - 1)")
+parser.add_argument('n', type=int, help="size of the grid (number of points or number of intervals + 1)")
 parser.add_argument('-poly', type=str, default=default_file, help="file of polynomial coefficients")
 parser.add_argument('-hide', help="hide the plot", action="store_true")
 parser.add_argument('-save', help="save the plot in the output directory", action="store_true")
 parser.add_argument('-noaxis', help="hide the axes", action="store_true")
+parser.add_argument('-notcolorblind', help="use black and red instead of blue and orange, for the pixels", action="store_true")
 parser.add_argument('-v', '--verbose', help="turn on the verbosity", action="store_true")
 parser.add_argument('-m', type=int, default=3, help="precision of the approximation")
 
 args = parser.parse_args()
 
 n = args.n # number of points
+notcolorblind = args.notcolorblind
 
 # Set function for verbosity
+
 Verbose.classInit(args.verbose)
 
 # Read the polynomial
@@ -124,22 +125,6 @@ poly_nodes[n] = np.sum(input, axis=0)
 minusones = np.array([(-1)^i for i in range(deg+1)])
 poly_nodes[n+1] = np.dot(input.T,minusones).T
 
-# Computation time logging
-
-Verbose.verboseprint("Logging...")
-
-time_logger = logging.getLogger("timing")
-time_logger.setLevel(logging.INFO)
-handler_format = logging.Formatter('%(message)s')
-time_handler = logging.FileHandler('certi_time.log', 'w')
-time_handler.setFormatter(handler_format)
-time_logger.addHandler(time_handler)
-
-# for key, value in Timer.timers.items(): #sorted_dict:
-#     time_logger.info(f"{key}\t{value}")
-time_logger.info(f"partial_eval\t{Timer.timers['first step']}")
-time_logger.info(f"second_step\t{Timer.timers['second step']}")
-
 # Show isolated intervals and pixels
 
 Verbose.verboseprint("Constructing the visualization...")
@@ -147,6 +132,9 @@ import matplotlib.pyplot as plt
 from matplotlib import collections as mc
 from matplotlib.patches import Rectangle
 
+from reportlab.pdfgen import canvas
+
+# set the interactive display
 fig1 = plt.figure()
 base = os.path.basename(args.poly)
 filename = os.path.splitext(base)[0]
@@ -156,6 +144,16 @@ ax1 = fig1.add_subplot(111, aspect='equal')
 ax1.tick_params(axis='both', which='minor', labelsize=10)
 if args.noaxis:
     ax1.set_axis_off() # hide the axis
+
+# set the .pdf file
+target_dir = os.path.join(os.path.dirname(__file__), '../output')
+dir = os.path.normpath(target_dir)
+if not os.path.exists(dir):
+    os.makedirs(dir)
+outpath_pdf = f"{dir}/{filename}_{n}_certified.pdf"
+
+width, height = 1000, 1000
+image = canvas.Canvas(outpath_pdf, pagesize=(width, height))
 
 # with Timer("append", logger=None):
 pixels = []
@@ -168,7 +166,7 @@ for i in range(n):
         if i != n-1:
             pixels.append(Pixel(i1=i+1, i2=i, j1=e[0], j2=e[1]))
 
-# remove duplicates from the list pixels
+# remove duplicates from the list of pixels
 pixels = {(pixel.i1, pixel.j1):pixel for pixel in pixels}.values()
 merged_pixels = []
 rects = []
@@ -186,55 +184,81 @@ for pixel in pixels:
     j1 = pixel.j1
     j2 = pixel.j2
     if pixel.isblack(polys, grid.ys):
-        # c_black += 1
-        color = 'black'
+        c_black += 1
+        color = "black" if notcolorblind else 'blue'
+        alpha = 1
     else:
-        # c_red += 1
-        color = 'red'
+        c_red += 1
+        color = "red" if notcolorblind else "#FFB44D"
+        alpha = 0.4
     if i1 == i1_prev and j1 == j2_prev and color == color_prev:
         del merged_pixels[-1]
         j1 = j1_prev
     else:
         j1_prev = j1
-    merged_pixels.append((Pixel(i1=i1, i2=i2, j1=j1, j2=j2),color))
+    merged_pixels.append((Pixel(i1=i1, i2=i2, j1=j1, j2=j2),color,alpha))
     i1_prev = i1
     j2_prev = j2
     color_prev = color
-    
+
 # create colored rectangles for the visualization
-for (pixel, color) in  merged_pixels:
+for (pixel, color, alpha) in  merged_pixels:
     x = grid.xs[pixel.i1]
     dx = grid.xs[pixel.i2] - x
     y = grid.ys[pixel.j1]
     dy = grid.ys[pixel.j2] - y
-    rects.append(Rectangle((x, y), dx, dy, color=color))
+    rects.append(Rectangle((x, y), dx, dy, color=color, alpha=alpha))
+    x = x + 1
+    y = y + 1
+    image.setFillColor(color)
+    image.rect(x * width / 2, y * height / 2, dx * width / 2, dy * height / 2, fill=1, stroke=0)
 
-# print(f"append\t{Timer.timers['append']}")
-# print(f"test\t{Timer.timers['test']}")
+# Computation time logging (except the visualization)
+
+Verbose.verboseprint("Logging...")
+
+time_logger = logging.getLogger("timing")
+time_logger.setLevel(logging.INFO)
+handler_format = logging.Formatter('%(message)s')
+time_handler = logging.FileHandler('certi_time.log', 'w')
+time_handler.setFormatter(handler_format)
+time_logger.addHandler(time_handler)
+
+time_logger.info(f"partial_eval\t{Timer.timers['first step']}")
+time_logger.info(f"second_step\t{Timer.timers['second step']}")
+
+# Pixel ratio logging
 
 # print(f"Number of black pixels: {c_black}")
 # print(f"Number of red pixels: {c_red}")
 # print(f"Ratio of black pixels among lighted pixels: {c_black / (c_red + c_black):.1%}")
 # print(f"Ratio of lighted pixels in the picture: {(c_red + c_black) / ((n+1) * (n+1)):.1%}")
 
-# lc = mc.LineCollection(segments, colors=colors, linewidths=0.1)
+ratio_logger = logging.getLogger("ratio")
+ratio_logger.setLevel(logging.INFO)
+ratio_handler = logging.FileHandler('certi_pixel_ratio.log', 'w')
+ratio_handler.setFormatter(handler_format)
+ratio_logger.addHandler(ratio_handler)
+
+ratio_logger.info(f"black\t{c_black}")
+ratio_logger.info(f"red\t{c_red}")
+ratio_logger.info(f"white\t{(n+1) * (n+1)}")
+
+# Save image
+
+if args.save:
+    image.save()
+    print("Figure saved at the following location:\n\t" + outpath_pdf)
+
+# Interactive display
+
 pc = mc.PatchCollection(rects, alpha=1, match_original=True)
 ax1.add_collection(pc)
 plt.xlim(grid.x_min, grid.x_max)
 plt.ylim(grid.y_min, grid.y_max)
 
-if args.save:
-    dir = "../output"
-    if not os.path.exists(dir):
-        os.makedirs(dir)
-    outpath_png = f"{dir}/{filename}_{n}_certified.png"
-    plt.savefig(outpath_png, bbox_inches='tight', dpi=1200)
-    # outpath_pdf = f"../output/{filename}_{n}_{weight}_{method}_{error}.pdf"
-    # plt.savefig(outpath_pdf, bbox_inches='tight', dpi=1200)
-    Verbose.verboseprint("Figure saved at the following locations:\n\t" + outpath_png) # + "\n\t" + outpath_pdf)
-
+Verbose.verboseprint("Done.")
 if not args.hide:
-    Verbose.verboseprint("Done.")
     plt.draw()
     plt.show(block=True)
     # plt.pause(0.0001)
