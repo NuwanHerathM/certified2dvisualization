@@ -5,7 +5,7 @@ import DelimitedFiles
 
 # Argument parsing
 s = ArgParse.ArgParseSettings()
-@ArgParse.add_arg_table s begin
+ArgParse.@add_arg_table! s begin
     "N"
         help = "log2 of the resolution"
         arg_type = Int

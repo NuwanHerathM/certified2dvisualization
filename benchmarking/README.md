@@ -1,5 +1,11 @@
 # Benchmarking
 
+## Julia
+
+For Julia, the sysimage `sys_plots.so` was created using the example at https://julialang.github.io/PackageCompiler.jl/dev/examples/plots.
+
+Unfortunately, I am facing various problems when I try to create it again. So, I cannot give more information about that...
+
 ## Comparison to state-of-the-art implementations
 
 The file `timing.sh` runs the benchmark, it stores the table as .tsv files in `output/` and the graphs as .png files in `images/`.\
@@ -15,7 +21,6 @@ For each polynomial, it consists in a double entry table with times for each met
 The script was writing for personal usage, so there is no guarantee that it might work for you.\
 Nonetheless, the different files starting with `compare_` are here so that you can see what was tested and test it yourself.
 
-For Julia, the sysimage `sys_plots.so` was created using the example at https://julialang.github.io/PackageCompiler.jl/dev/examples/plots.
 
 ## Test of the relevance of the IDCT for a fast multipoint evaluation
 
